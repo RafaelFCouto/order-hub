@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import Select from '../components/Select';
 import type { Category, Product, Store } from '../types';
 
 interface FormState {
@@ -24,7 +26,6 @@ export default function Products() {
   const qc = useQueryClient();
   const [storeId, setStoreId] = useState('');
   const [form, setForm] = useState<FormState>(EMPTY);
-  const [newCat, setNewCat] = useState('');
   const [error, setError] = useState<string | null>(null);
   const editing = Boolean(form.id);
 
@@ -54,18 +55,6 @@ export default function Products() {
     setForm(EMPTY);
     setError(null);
   };
-
-  const saveCat = useMutation({
-    mutationFn: () =>
-      api<Category>('/categories', {
-        method: 'POST',
-        body: JSON.stringify({ storeId, name: newCat }),
-      }),
-    onSuccess: () => {
-      setNewCat('');
-      qc.invalidateQueries({ queryKey: ['categories', storeId] });
-    },
-  });
 
   const save = useMutation({
     mutationFn: (f: FormState) => {
@@ -115,18 +104,21 @@ export default function Products() {
 
   return (
     <div className="page">
-      <h2>Produtos</h2>
+      <div className="page-head">
+        <h2>Produtos</h2>
+        <Link className="link" to="/categories">
+          Gerenciar categorias
+        </Link>
+      </div>
 
-      <label>
-        Loja
-        <select value={storeId} onChange={(e) => setStoreId(e.target.value)}>
-          {stores.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="field">
+        <span className="field-label">Loja</span>
+        <Select
+          value={storeId}
+          onChange={setStoreId}
+          options={stores.map((s) => ({ value: s.id, label: s.name }))}
+        />
+      </div>
 
       <form className="card row-form" onSubmit={onSubmit}>
         <input
@@ -151,17 +143,15 @@ export default function Products() {
           value={form.stock}
           onChange={(e) => setForm({ ...form, stock: e.target.value })}
         />
-        <select
+        <Select
           value={form.categoryId}
-          onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-        >
-          <option value="">Sem categoria</option>
-          {categories?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setForm({ ...form, categoryId: v })}
+          placeholder="Selecione a Categoria"
+          options={[
+            { value: '', label: 'Selecione a Categoria' },
+            ...(categories?.map((c) => ({ value: c.id, label: c.name })) ?? []),
+          ]}
+        />
         <button type="submit" disabled={save.isPending}>
           {save.isPending ? '...' : editing ? 'Salvar' : 'Adicionar'}
         </button>
@@ -172,23 +162,6 @@ export default function Products() {
         )}
       </form>
       {error && <p className="error">{error}</p>}
-
-      <form
-        className="row-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (newCat.trim()) saveCat.mutate();
-        }}
-      >
-        <input
-          placeholder="Nova categoria"
-          value={newCat}
-          onChange={(e) => setNewCat(e.target.value)}
-        />
-        <button type="submit" className="link" disabled={saveCat.isPending}>
-          + Categoria
-        </button>
-      </form>
 
       {isLoading ? (
         <p className="muted">Carregando...</p>

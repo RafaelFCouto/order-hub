@@ -18,6 +18,9 @@ export interface Category {
   id: string;
   storeId: string;
   name: string;
+  updatedUserId: string | null;
+  deletedAt: string | null;
+  deletedUserId: string | null;
 }
 
 export interface Product {

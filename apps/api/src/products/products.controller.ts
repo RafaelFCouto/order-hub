@@ -13,7 +13,12 @@ import { AuthGuard } from '../auth/auth.guard';
 import type { AuthUser } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ProductsService } from './products.service';
-import { CreateCategoryDto, CreateProductDto, UpdateProductDto } from './dto';
+import {
+  CreateCategoryDto,
+  CreateProductDto,
+  UpdateCategoryDto,
+  UpdateProductDto,
+} from './dto';
 
 @UseGuards(AuthGuard)
 @Controller()
@@ -25,8 +30,13 @@ export class ProductsController {
   listCategories(
     @CurrentUser() user: AuthUser,
     @Query('store_id') storeId: string,
+    @Query('include_deleted') includeDeleted?: string,
   ) {
-    return this.products.listCategories(user.id, storeId);
+    return this.products.listCategories(
+      user.id,
+      storeId,
+      includeDeleted === 'true',
+    );
   }
 
   @Post('categories')
@@ -35,6 +45,20 @@ export class ProductsController {
     @Body() dto: CreateCategoryDto,
   ) {
     return this.products.createCategory(user.id, dto);
+  }
+
+  @Patch('categories/:id')
+  updateCategory(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.products.updateCategory(user.id, id, dto);
+  }
+
+  @Delete('categories/:id')
+  removeCategory(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.products.removeCategory(user.id, id);
   }
 
   // ---------- produtos ----------

@@ -67,6 +67,58 @@ describe('ProductsService', () => {
     expect(all.find((x) => x.id === p.id)).toBeUndefined();
   });
 
+  it('renomeia e reativa categoria', async () => {
+    const cat = await service.createCategory(USER.id, {
+      storeId,
+      name: 'Tortas',
+    });
+    const renamed = await service.updateCategory(USER.id, cat.id, {
+      name: 'Tortas Doces',
+    });
+    expect(renamed.name).toBe('Tortas Doces');
+    expect(renamed.updatedUserId).toBe(USER.id);
+
+    await service.updateCategory(USER.id, cat.id, { active: false });
+    const visiveis = await service.listCategories(USER.id, storeId);
+    expect(visiveis.find((c) => c.id === cat.id)).toBeUndefined();
+
+    const comExcluidas = await service.listCategories(USER.id, storeId, true);
+    expect(comExcluidas.find((c) => c.id === cat.id)).toBeDefined();
+
+    const reativada = await service.updateCategory(USER.id, cat.id, {
+      active: true,
+    });
+    expect(reativada.deletedAt).toBeNull();
+  });
+
+  it('exclui categoria e solta os produtos vinculados', async () => {
+    const cat = await service.createCategory(USER.id, {
+      storeId,
+      name: 'Salgados',
+    });
+    const prod = await service.create(USER.id, {
+      storeId,
+      categoryId: cat.id,
+      name: 'Coxinha',
+      price: 8,
+    });
+
+    await service.removeCategory(USER.id, cat.id);
+
+    // categoria some da listagem
+    const list = await service.listCategories(USER.id, storeId);
+    expect(list.find((c) => c.id === cat.id)).toBeUndefined();
+
+    // registra quem excluiu
+    const comExcluidas = await service.listCategories(USER.id, storeId, true);
+    const excluida = comExcluidas.find((c) => c.id === cat.id);
+    expect(excluida?.deletedUserId).toBe(USER.id);
+
+    // produto preservado, sem categoria
+    const solto = await service.get(USER.id, prod.id);
+    expect(solto.categoryId).toBeNull();
+  });
+
   it('bloqueia acesso de quem não é membro da loja', async () => {
     const other: AuthUser = { id: 'intruso', email: 'i@x.com', name: 'I' };
     await prisma.user.upsert({

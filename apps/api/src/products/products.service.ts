@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoresService } from '../stores/stores.service';
-import { CreateCategoryDto, CreateProductDto, UpdateProductDto } from './dto';
+import {
+  CreateCategoryDto,
+  CreateProductDto,
+  UpdateCategoryDto,
+  UpdateProductDto,
+} from './dto';
 
 @Injectable()
 export class ProductsService {
@@ -11,10 +16,10 @@ export class ProductsService {
   ) {}
 
   // ---------- categorias ----------
-  async listCategories(userId: string, storeId: string) {
+  async listCategories(userId: string, storeId: string, includeDeleted = false) {
     await this.stores.assertMember(userId, storeId);
     return this.prisma.productCategory.findMany({
-      where: { storeId, deletedAt: null },
+      where: { storeId, ...(includeDeleted ? {} : { deletedAt: null }) },
       orderBy: { name: 'asc' },
     });
   }
@@ -22,6 +27,49 @@ export class ProductsService {
   async createCategory(userId: string, dto: CreateCategoryDto) {
     await this.stores.assertMember(userId, dto.storeId);
     return this.prisma.productCategory.create({ data: dto });
+  }
+
+  private async assertCategory(userId: string, id: string) {
+    const cat = await this.prisma.productCategory.findUnique({ where: { id } });
+    if (!cat) throw new NotFoundException('Categoria não encontrada');
+    await this.stores.assertMember(userId, cat.storeId);
+    return cat;
+  }
+
+  async updateCategory(userId: string, id: string, dto: UpdateCategoryDto) {
+    await this.assertCategory(userId, id);
+    return this.prisma.productCategory.update({
+      where: { id },
+      data: {
+        ...(dto.name === undefined ? {} : { name: dto.name }),
+        ...(dto.active === undefined
+          ? {}
+          : dto.active
+            ? { deletedAt: null, deletedUserId: null } // reativa
+            : { deletedAt: new Date(), deletedUserId: userId }), // soft-delete
+        updatedUserId: userId,
+      },
+    });
+  }
+
+  /** Soft-delete: marca deletedAt/quem e solta os produtos (categoryId = null). */
+  async removeCategory(userId: string, id: string) {
+    await this.assertCategory(userId, id);
+    await this.prisma.$transaction([
+      this.prisma.product.updateMany({
+        where: { categoryId: id },
+        data: { categoryId: null },
+      }),
+      this.prisma.productCategory.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          deletedUserId: userId,
+          updatedUserId: userId,
+        },
+      }),
+    ]);
+    return { ok: true };
   }
 
   // ---------- produtos ----------

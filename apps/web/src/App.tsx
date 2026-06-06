@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Stores from './pages/Stores';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
+import Categories from './pages/Categories';
 
 export default function App() {
   const { session, loading } = useAuth();
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/products" element={<Products />} />
+        <Route path="/categories" element={<Categories />} />
         <Route path="/stores" element={<Stores />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
