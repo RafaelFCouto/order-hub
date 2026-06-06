@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Stores from './pages/Stores';
+import Customers from './pages/Customers';
 
 export default function App() {
   const { session, loading } = useAuth();
@@ -25,6 +26,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/customers" element={<Customers />} />
         <Route path="/stores" element={<Stores />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -192,6 +192,18 @@ label {
   color: #374151;
 }
 
+.small {
+  font-size: 0.8rem;
+}
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+button.link.danger {
+  color: var(--danger);
+}
+
 /* ---- Desktop / tablet ---- */
 @media (min-width: 768px) {
   .row-form {

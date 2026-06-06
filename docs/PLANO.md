@@ -299,17 +299,20 @@ GET    /dashboard/summary       ?store_id=  → faturamento mês, pedidos hoje, 
 8. **Produtos** — CRUD por loja + categorias.
 9. **Config** — dados das lojas, membros/usuários.
 
-## 7. Fases de entrega
+## 7. Fases de entrega (refinado — cada fase = API + UI + teste, entregável)
 
-- **Fase 0 — Setup:** monorepo (pnpm workspaces), Supabase projeto, Prisma schema + migrations, NestJS base, React base, deploy pipeline.
-- **Fase 1 — Auth + Lojas:** login Supabase, criar loja, membros, troca de loja.
-- **Fase 2 — Cadastros:** clientes, produtos, categorias.
-- **Fase 3 — Pedidos:** criar/editar pedido com itens, totais no server, status workflow.
-- **Fase 4 — Pagamentos:** parciais, saldo devedor, `payment_status` derivado.
-- **Fase 5 — Entrega:** tabela `delivery`, método/custo, `delivery_status`, regra de fechamento 4.4.
-- **Fase 6 — Estoque:** `stock_movement`, baixa no registro do pedido, aviso de negativo, devolução no cancelamento.
-- **Fase 7 — Dashboard:** resumos e filtros.
-- **Fase 8 — Extras:** lembrete WhatsApp da retirada, relatórios, `order_event` (timeline).
+- **Fase 0 — Setup:** ✅ monorepo pnpm, NestJS + Prisma 7, React/Vite, Postgres (Docker) + migrations, testes SQLite.
+- **Fase 1 — Auth + Lojas:** ✅ login Supabase, upsert `app_user`, CRUD de loja (criador vira OWNER).
+- **Fase 2 — Clientes:** CRUD owner-scoped + busca. (independe de loja)
+- **Fase 3 — Produtos:** categorias + produtos por loja + estoque inicial. Loja escolhida via `<select>` no form (sem seletor global por ora). (depende de Loja)
+- **Fase 4 — Pedidos (núcleo):** criar/editar com itens (mistura lojas), totais no server, 3 status, listagem unificada. (depende de F2 + F3)
+- **Fase 5 — Pagamentos:** parciais, saldo devedor, `payment_status` derivado, OVERPAID. (depende de F4)
+- **Fase 6 — Entrega:** `delivery`, método/custo, `delivery_status`, regra de fechamento 4.4. (depende de F4)
+- **Fase 7 — Estoque:** `stock_movement`, baixa no registro, `product_history`, devolução no cancelamento. (depende de F4)
+- **Fase 8 — Dashboard + Agenda:** resumos, filtros, calendário. (depende de F4)
+- **Fase 9 — Extras:** lembrete WhatsApp (`wa.me`), relatórios, `order_event` (timeline).
+
+> Onboarding/seletor de loja global: adiado. Produto pega a loja por `<select>` no próprio form. Revisitar quando incomodar.
 
 ## 8. Decidido
 
