@@ -1,18 +1,12 @@
 // Prova o pipeline de testes em SQLite: cria loja+cliente+produto e lê de volta.
 import { createTestPrisma } from './prisma-test';
+import { resetDb } from './reset';
 
 const prisma = createTestPrisma();
 
 describe('SQLite test pipeline', () => {
   beforeAll(async () => {
-    // limpa dados deste teste (ordem respeita FKs)
-    await prisma.orderItem.deleteMany();
-    await prisma.order.deleteMany();
-    await prisma.product.deleteMany();
-    await prisma.customer.deleteMany();
-    await prisma.storeMember.deleteMany();
-    await prisma.store.deleteMany();
-    await prisma.user.deleteMany();
+    await resetDb(prisma);
   });
 
   afterAll(async () => {

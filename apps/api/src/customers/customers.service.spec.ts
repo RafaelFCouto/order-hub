@@ -1,5 +1,6 @@
 // Testa CustomersService (CRUD + busca + soft delete) em SQLite.
 import { createTestPrisma } from '../test-utils/prisma-test';
+import { resetDb } from '../test-utils/reset';
 import { CustomersService } from './customers.service';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -10,11 +11,9 @@ const OWNER = 'owner-cust-1';
 
 describe('CustomersService', () => {
   beforeAll(async () => {
-    await prisma.customer.deleteMany({ where: { ownerId: OWNER } });
-    await prisma.user.upsert({
-      where: { id: OWNER },
-      update: {},
-      create: { id: OWNER, email: 'o@x.com', name: 'Owner' },
+    await resetDb(prisma);
+    await prisma.user.create({
+      data: { id: OWNER, email: 'o@x.com', name: 'Owner' },
     });
   });
 

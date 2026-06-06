@@ -42,7 +42,8 @@ button.link {
   font-weight: 500;
 }
 
-input {
+input,
+select {
   font: inherit;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);

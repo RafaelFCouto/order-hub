@@ -14,6 +14,23 @@ export interface Me {
   stores: Store[];
 }
 
+export interface Category {
+  id: string;
+  storeId: string;
+  name: string;
+}
+
+export interface Product {
+  id: string;
+  storeId: string;
+  categoryId: string | null;
+  name: string;
+  description: string | null;
+  price: string;
+  stock: number | null;
+  active: boolean;
+}
+
 export interface Customer {
   id: string;
   name: string;
