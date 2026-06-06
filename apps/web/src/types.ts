@@ -4,6 +4,7 @@ export interface Store {
   id: string;
   name: string;
   slug: string;
+  cnpj: string | null;
   phone: string | null;
   role: StoreRole;
 }

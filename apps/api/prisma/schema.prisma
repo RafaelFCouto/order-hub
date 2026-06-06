@@ -97,6 +97,7 @@ model Store {
   id        String    @id @default(uuid()) @db.Uuid
   name      String
   slug      String    @unique
+  cnpj      String?
   phone     String?
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)

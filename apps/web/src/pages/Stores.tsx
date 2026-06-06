@@ -6,6 +6,7 @@ import type { Store } from '../types';
 export default function Stores() {
   const qc = useQueryClient();
   const [name, setName] = useState('');
+  const [cnpj, setCnpj] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -15,10 +16,11 @@ export default function Stores() {
   });
 
   const create = useMutation({
-    mutationFn: (body: { name: string; phone?: string }) =>
+    mutationFn: (body: { name: string; cnpj?: string; phone?: string }) =>
       api<Store>('/stores', { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: () => {
       setName('');
+      setCnpj('');
       setPhone('');
       qc.invalidateQueries({ queryKey: ['stores'] });
       qc.invalidateQueries({ queryKey: ['me'] });
@@ -29,7 +31,11 @@ export default function Stores() {
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    create.mutate({ name, phone: phone || undefined });
+    create.mutate({
+      name,
+      cnpj: cnpj || undefined,
+      phone: phone || undefined,
+    });
   }
 
   return (
@@ -43,6 +49,11 @@ export default function Stores() {
           onChange={(e) => setName(e.target.value)}
           required
           minLength={2}
+        />
+        <input
+          placeholder="CNPJ (opcional)"
+          value={cnpj}
+          onChange={(e) => setCnpj(e.target.value)}
         />
         <input
           placeholder="Telefone (opcional)"
@@ -66,6 +77,7 @@ export default function Stores() {
               <div>
                 <strong>{s.name}</strong>
                 <span className="muted"> /{s.slug}</span>
+                {s.cnpj && <div className="muted small">CNPJ: {s.cnpj}</div>}
               </div>
               <span className={`badge badge-${s.role.toLowerCase()}`}>
                 {s.role}

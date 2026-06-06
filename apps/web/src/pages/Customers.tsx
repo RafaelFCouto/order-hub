@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import { waLink } from '../lib/whatsapp';
 import type { Customer } from '../types';
 
 interface FormState {
@@ -114,7 +115,21 @@ export default function Customers() {
             <li key={c.id} className="card list-item">
               <div>
                 <strong>{c.name}</strong>
-                {c.phone && <span className="muted"> · {c.phone}</span>}
+                {c.phone &&
+                  (waLink(c.phone) ? (
+                    <a
+                      className="wa"
+                      href={waLink(c.phone)!}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Abrir no WhatsApp"
+                    >
+                      {' · '}
+                      {c.phone}
+                    </a>
+                  ) : (
+                    <span className="muted"> · {c.phone}</span>
+                  ))}
                 <div className="muted small">
                   {c.totalOrders} pedido(s) · R$ {c.totalSpent}
                 </div>

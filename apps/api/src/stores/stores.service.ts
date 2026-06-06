@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.guard';
 import { CreateStoreDto, UpdateStoreDto } from './dto';
@@ -23,10 +27,12 @@ export class StoresService {
   }
 
   async create(user: AuthUser, dto: CreateStoreDto) {
+    await this.assertNameFree(user.id, dto.name);
     const slug = await this.uniqueSlug(dto.name);
     return this.prisma.store.create({
       data: {
         name: dto.name,
+        cnpj: dto.cnpj,
         phone: dto.phone,
         slug,
         members: { create: { userId: user.id, role: 'OWNER' } },
@@ -36,10 +42,27 @@ export class StoresService {
 
   async update(user: AuthUser, storeId: string, dto: UpdateStoreDto) {
     await this.assertMember(user.id, storeId, true);
+    if (dto.name) await this.assertNameFree(user.id, dto.name, storeId);
     return this.prisma.store.update({
       where: { id: storeId },
-      data: { name: dto.name, phone: dto.phone },
+      data: { name: dto.name, cnpj: dto.cnpj, phone: dto.phone },
     });
+  }
+
+  /** Impede duas lojas do mesmo dono com o mesmo nome (case-insensitive). */
+  private async assertNameFree(
+    userId: string,
+    name: string,
+    exceptId?: string,
+  ) {
+    const stores = await this.listForUser(userId);
+    const target = name.trim().toLowerCase();
+    const clash = stores.some(
+      (s) => s.id !== exceptId && s.name.trim().toLowerCase() === target,
+    );
+    if (clash) {
+      throw new ConflictException('Já existe uma loja com esse nome');
+    }
   }
 
   /** Garante que o usuário é membro da loja; se requireOwner, exige OWNER. */

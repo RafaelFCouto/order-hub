@@ -14,6 +14,11 @@ export class CreateStoreDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(18)
+  cnpj?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(30)
   phone?: string;
 }
@@ -24,6 +29,11 @@ export class UpdateStoreDto {
   @MinLength(2)
   @MaxLength(80)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(18)
+  cnpj?: string;
 
   @IsOptional()
   @IsString()
