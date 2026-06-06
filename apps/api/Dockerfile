@@ -1,0 +1,30 @@
+# OrderHub API — build context = repo root (monorepo pnpm)
+# build:  docker build -f apps/api/Dockerfile -t orderhub-api .
+FROM node:22-slim AS base
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+RUN corepack enable
+WORKDIR /app
+
+# ---- deps + build ----
+FROM base AS build
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+RUN pnpm install --frozen-lockfile
+COPY apps/api ./apps/api
+RUN pnpm --filter api exec prisma generate
+RUN pnpm --filter api build
+
+# ---- runtime ----
+FROM base AS runtime
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/api/prisma ./apps/api/prisma
+COPY --from=build /app/apps/api/prisma.config.ts ./apps/api/prisma.config.ts
+COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+WORKDIR /app/apps/api
+EXPOSE 3000
+# aplica migrations e sobe a API
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/main.js"]

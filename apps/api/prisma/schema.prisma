@@ -1,0 +1,323 @@
+// OrderHub — Prisma schema. Espelha docs/schema.sql.
+// Multi-loja (pedido cruza lojas), soft delete global, 3 eixos de status.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────── ENUMS ─────────────────────────
+enum StoreRole {
+  OWNER
+  STAFF
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PRODUCTION
+  READY
+  CANCELED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERPAID
+  REFUNDED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SHIPPED
+  RECEIVED
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  CARD
+  OTHER
+}
+
+enum DeliveryMethod {
+  PICKUP
+  OWN_DELIVERY
+  UBER
+  MOTOBOY
+  CORREIOS
+  OTHER
+}
+
+enum DiscountType {
+  NONE
+  FIXED
+  PERCENT
+}
+
+enum StockReason {
+  SALE
+  CANCEL_RETURN
+  MANUAL
+  ADJUST
+}
+
+enum ProductEventType {
+  PRICE_CHANGE
+  STOCK_SALE
+  STOCK_RESTOCK
+  STOCK_RETURN
+  STOCK_ADJUST
+}
+
+// ───────────────────────── MODELS ─────────────────────────
+
+/// Espelha o Supabase Auth (id = auth.users.id).
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  memberships   StoreMember[]
+  customers     Customer[]
+  orders        Order[]
+  deliveries    Delivery[]
+  stockMoves    ProductHistory[]
+
+  @@map("app_user")
+}
+
+model Store {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String    @unique
+  phone     String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  members    StoreMember[]
+  categories ProductCategory[]
+  products   Product[]
+  orderItems OrderItem[]
+
+  @@map("store")
+}
+
+model StoreMember {
+  id        String    @id @default(uuid()) @db.Uuid
+  storeId   String    @map("store_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  role      StoreRole @default(STAFF)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([storeId, userId])
+  @@map("store_member")
+}
+
+/// Compartilhado entre as lojas do dono (sem store_id). Resumo denormalizado.
+model Customer {
+  id           String    @id @default(uuid()) @db.Uuid
+  ownerId      String    @map("owner_id") @db.Uuid
+  name         String
+  phone        String?
+  email        String?
+  notes        String?
+  totalOrders  Int       @default(0) @map("total_orders")
+  totalSpent   Decimal   @default(0) @map("total_spent") @db.Decimal(12, 2)
+  lastOrderAt  DateTime? @map("last_order_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  owner  User    @relation(fields: [ownerId], references: [id])
+  orders Order[]
+
+  @@index([ownerId])
+  @@map("customer")
+}
+
+model ProductCategory {
+  id        String    @id @default(uuid()) @db.Uuid
+  storeId   String    @map("store_id") @db.Uuid
+  name      String
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  store    Store     @relation(fields: [storeId], references: [id])
+  products Product[]
+
+  @@map("product_category")
+}
+
+model Product {
+  id          String    @id @default(uuid()) @db.Uuid
+  storeId     String    @map("store_id") @db.Uuid
+  categoryId  String?   @map("category_id") @db.Uuid
+  name        String
+  description String?
+  price       Decimal   @db.Decimal(10, 2)
+  stock       Int? // qtd atual (cache; null = não controla). Fonte da verdade: StockMovement
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  store      Store            @relation(fields: [storeId], references: [id])
+  category   ProductCategory? @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+  stockMoves StockMovement[]
+  history    ProductHistory[]
+
+  @@index([storeId])
+  @@map("product")
+}
+
+/// Sem store_id — a loja vem dos itens. Pode cruzar lojas.
+model Order {
+  id               String         @id @default(uuid()) @db.Uuid
+  ownerId          String         @map("owner_id") @db.Uuid
+  customerId       String         @map("customer_id") @db.Uuid
+  code             Int            @default(autoincrement())
+  status           OrderStatus    @default(PENDING)
+  paymentStatus    PaymentStatus  @default(UNPAID) @map("payment_status")
+  deliveryStatus   DeliveryStatus @default(PENDING) @map("delivery_status")
+  scheduledFor     DateTime?      @map("scheduled_for") @db.Timestamptz(6)
+  itemsTotal       Decimal        @default(0) @map("items_total") @db.Decimal(10, 2)
+  discountType     DiscountType   @default(NONE) @map("discount_type")
+  discountValue    Decimal        @default(0) @map("discount_value") @db.Decimal(10, 2)
+  discountAmount   Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  hasStoreDiscount Boolean        @default(false) @map("has_store_discount")
+  overrideValue    Decimal?       @map("override_value") @db.Decimal(10, 2)
+  deliveryFee      Decimal        @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  total            Decimal        @default(0) @db.Decimal(10, 2)
+  paidTotal        Decimal        @default(0) @map("paid_total") @db.Decimal(10, 2)
+  balanceDue       Decimal        @default(0) @map("balance_due") @db.Decimal(10, 2)
+  notes            String?
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  owner      User        @relation(fields: [ownerId], references: [id])
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+  deliveries Delivery[]
+
+  @@index([ownerId])
+  @@index([customerId])
+  @@index([scheduledFor])
+  @@map("order")
+}
+
+/// Carrega a loja; congela nome/preço.
+model OrderItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  orderId     String    @map("order_id") @db.Uuid
+  productId   String    @map("product_id") @db.Uuid
+  storeId     String    @map("store_id") @db.Uuid
+  productName String    @map("product_name")
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(10, 2)
+  quantity    Int
+  lineTotal   Decimal   @map("line_total") @db.Decimal(10, 2)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  order      Order            @relation(fields: [orderId], references: [id])
+  product    Product          @relation(fields: [productId], references: [id])
+  store      Store            @relation(fields: [storeId], references: [id])
+  stockMoves StockMovement[]
+  history    ProductHistory[]
+
+  @@index([orderId])
+  @@index([storeId])
+  @@map("order_item")
+}
+
+model Payment {
+  id        String        @id @default(uuid()) @db.Uuid
+  orderId   String        @map("order_id") @db.Uuid
+  amount    Decimal       @db.Decimal(10, 2)
+  method    PaymentMethod
+  paidAt    DateTime      @default(now()) @map("paid_at") @db.Timestamptz(6)
+  notes     String?
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@map("payment")
+}
+
+/// 1 entrega por pedido (1-pra-1).
+model Delivery {
+  id            String         @id @default(uuid()) @db.Uuid
+  orderId       String         @map("order_id") @db.Uuid
+  method        DeliveryMethod
+  recipientName String?        @map("recipient_name")
+  address       String?
+  deliveredById String?        @map("delivered_by") @db.Uuid
+  courierName   String?        @map("courier_name")
+  cost          Decimal?       @db.Decimal(10, 2)
+  shippedAt     DateTime?      @map("shipped_at") @db.Timestamptz(6)
+  receivedAt    DateTime?      @map("received_at") @db.Timestamptz(6)
+  notes         String?
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt     DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  order       Order @relation(fields: [orderId], references: [id])
+  deliveredBy User? @relation(fields: [deliveredById], references: [id])
+
+  @@index([orderId])
+  @@index([deliveredById])
+  @@index([method])
+  @@map("delivery")
+}
+
+/// Ledger de estoque (product.stock = soma dos qty_change).
+model StockMovement {
+  id          String      @id @default(uuid()) @db.Uuid
+  productId   String      @map("product_id") @db.Uuid
+  orderItemId String?     @map("order_item_id") @db.Uuid
+  qtyChange   Int         @map("qty_change")
+  reason      StockReason
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product   Product    @relation(fields: [productId], references: [id])
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id])
+
+  @@index([productId])
+  @@map("stock_movement")
+}
+
+/// Auditoria do produto: preço e estoque, com anterior/atual.
+model ProductHistory {
+  id          String           @id @default(uuid()) @db.Uuid
+  productId   String           @map("product_id") @db.Uuid
+  eventType   ProductEventType @map("event_type")
+  field       String
+  oldValue    Decimal?         @map("old_value") @db.Decimal(10, 2)
+  newValue    Decimal?         @map("new_value") @db.Decimal(10, 2)
+  qtyChange   Int?             @map("qty_change")
+  orderItemId String?          @map("order_item_id") @db.Uuid
+  actorId     String?          @map("actor_id") @db.Uuid
+  note        String?
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product   Product    @relation(fields: [productId], references: [id])
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id])
+  actor     User?      @relation(fields: [actorId], references: [id])
+
+  @@index([productId, createdAt])
+  @@map("product_history")
+}

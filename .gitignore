@@ -1,0 +1,33 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# prisma
+apps/api/prisma/*.db
+apps/api/src/generated/
+
+# vite
+apps/web/dist/
+
+# schema de teste gerado (derivado do schema.prisma)
+apps/api/prisma/schema.test.prisma
