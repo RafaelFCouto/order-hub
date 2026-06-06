@@ -44,3 +44,46 @@ export interface Customer {
   totalSpent: string;
   lastOrderAt: string | null;
 }
+
+export type OrderStatus = 'PENDING' | 'IN_PRODUCTION' | 'READY' | 'CANCELED';
+export type PaymentStatus =
+  | 'UNPAID'
+  | 'PARTIAL'
+  | 'PAID'
+  | 'OVERPAID'
+  | 'REFUNDED';
+export type DeliveryStatus = 'PENDING' | 'SHIPPED' | 'RECEIVED';
+export type DiscountType = 'NONE' | 'FIXED' | 'PERCENT';
+
+export interface OrderItem {
+  id: string;
+  productId: string;
+  storeId: string;
+  productName: string;
+  unitPrice: string;
+  quantity: number;
+  lineTotal: string;
+}
+
+export interface Order {
+  id: string;
+  code: number;
+  customerId: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  deliveryStatus: DeliveryStatus;
+  scheduledFor: string | null;
+  itemsTotal: string;
+  discountType: DiscountType;
+  discountValue: string;
+  discountAmount: string;
+  hasStoreDiscount: boolean;
+  deliveryFee: string;
+  total: string;
+  paidTotal: string;
+  balanceDue: string;
+  notes: string | null;
+  createdAt: string;
+  items: OrderItem[];
+  customer?: Customer;
+}

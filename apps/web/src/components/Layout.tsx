@@ -31,6 +31,7 @@ export default function Layout() {
         <NavLink to="/" end>
           Início
         </NavLink>
+        <NavLink to="/orders">Pedidos</NavLink>
         <NavLink to="/customers">Clientes</NavLink>
         <NavLink to="/products">Produtos</NavLink>
         <NavLink to="/stores">Lojas</NavLink>

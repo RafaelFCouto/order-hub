@@ -7,6 +7,8 @@ import Stores from './pages/Stores';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
 import Categories from './pages/Categories';
+import Orders from './pages/Orders';
+import OrderForm from './pages/OrderForm';
 
 export default function App() {
   const { session, loading } = useAuth();
@@ -28,6 +30,9 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/orders/new" element={<OrderForm />} />
+        <Route path="/orders/:id" element={<OrderForm />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/products" element={<Products />} />
         <Route path="/categories" element={<Categories />} />
