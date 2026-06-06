@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { brl } from '../lib/format';
@@ -29,6 +29,7 @@ const NEXT_STATUS: Partial<Record<OrderStatus, { to: OrderStatus; label: string 
 
 export default function Orders() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [storeId, setStoreId] = useState('');
   const [status, setStatus] = useState('');
 
@@ -143,9 +144,12 @@ export default function Orders() {
                     </button>
                   )}
                   {editable && (
-                    <Link className="link" to={`/orders/${o.id}`}>
+                    <button
+                      className="link"
+                      onClick={() => navigate(`/orders/${o.id}`)}
+                    >
                       Editar
-                    </Link>
+                    </button>
                   )}
                   {o.status !== 'CANCELED' && (
                     <button

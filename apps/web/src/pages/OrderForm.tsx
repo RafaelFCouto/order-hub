@@ -25,6 +25,7 @@ export default function OrderForm() {
   const [discountType, setDiscountType] = useState<DiscountType>('NONE');
   const [discountValue, setDiscountValue] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
+  const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledFor, setScheduledFor] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,12 @@ export default function OrderForm() {
   const [pickStore, setPickStore] = useState('');
   const [pickProduct, setPickProduct] = useState('');
   const [pickQty, setPickQty] = useState('1');
+
+  // cadastro rápido de cliente
+  const [newCustomer, setNewCustomer] = useState(false);
+  const [ncName, setNcName] = useState('');
+  const [ncPhone, setNcPhone] = useState('');
+  const [ncError, setNcError] = useState<string | null>(null);
 
   const { data: customers } = useQuery({
     queryKey: ['customers'],
@@ -70,6 +77,7 @@ export default function OrderForm() {
     setDiscountType(order.discountType);
     setDiscountValue(order.discountType === 'NONE' ? '' : order.discountValue);
     setDeliveryFee(Number(order.deliveryFee) ? order.deliveryFee : '');
+    setIsScheduled(Boolean(order.scheduledFor));
     setScheduledFor(
       order.scheduledFor ? order.scheduledFor.slice(0, 16) : '',
     );
@@ -119,6 +127,33 @@ export default function OrderForm() {
   const removeLine = (productId: string) =>
     setLines((prev) => prev.filter((l) => l.productId !== productId));
 
+  const setQty = (productId: string, qty: number) =>
+    setLines((prev) =>
+      prev.map((l) =>
+        l.productId === productId ? { ...l, quantity: Math.max(1, qty) } : l,
+      ),
+    );
+
+  const createCustomer = useMutation({
+    mutationFn: () =>
+      api<Customer>('/customers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: ncName.trim(),
+          phone: ncPhone.trim() || undefined,
+        }),
+      }),
+    onSuccess: (c) => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      setCustomerId(c.id); // já seleciona o novo
+      setNewCustomer(false);
+      setNcName('');
+      setNcPhone('');
+      setNcError(null);
+    },
+    onError: (e) => setNcError(e instanceof Error ? e.message : 'Erro'),
+  });
+
   const save = useMutation({
     mutationFn: () => {
       const body = JSON.stringify({
@@ -130,9 +165,10 @@ export default function OrderForm() {
         discountType,
         discountValue: discountType === 'NONE' ? 0 : Number(discountValue) || 0,
         deliveryFee: Number(deliveryFee) || 0,
-        scheduledFor: scheduledFor
-          ? new Date(scheduledFor).toISOString()
-          : undefined,
+        scheduledFor:
+          isScheduled && scheduledFor
+            ? new Date(scheduledFor).toISOString()
+            : null,
         notes: notes || undefined,
       });
       return editing
@@ -166,15 +202,27 @@ export default function OrderForm() {
       <form className="order-form" onSubmit={onSubmit}>
         <div className="field">
           <span className="field-label">Cliente *</span>
-          <Select
-            value={customerId}
-            onChange={setCustomerId}
-            placeholder="Selecione o cliente"
-            options={(customers ?? []).map((c) => ({
-              value: c.id,
-              label: c.name,
-            }))}
-          />
+          <div className="field-with-action">
+            <Select
+              value={customerId}
+              onChange={setCustomerId}
+              placeholder="Selecione o cliente"
+              options={(customers ?? []).map((c) => ({
+                value: c.id,
+                label: c.name,
+              }))}
+            />
+            <button
+              type="button"
+              className="btn-link"
+              onClick={() => {
+                setNcError(null);
+                setNewCustomer(true);
+              }}
+            >
+              + Novo
+            </button>
+          </div>
         </div>
 
         {/* builder de itens */}
@@ -218,21 +266,67 @@ export default function OrderForm() {
           <ul className="list">
             {lines.map((l) => (
               <li key={l.productId} className="card list-item">
-                <div>
+                <div className="line-info">
                   <strong>{l.productName}</strong>
-                  <span className="badge badge-owner"> {storeName(l.storeId)}</span>
+                  <div>
+                    <span className="badge badge-owner">
+                      {storeName(l.storeId)}
+                    </span>
+                  </div>
                   <div className="muted small">
-                    {l.quantity} × {brl(l.unitPrice)} ={' '}
-                    {brl(l.unitPrice * l.quantity)}
+                    {brl(l.unitPrice)} cada = {brl(l.unitPrice * l.quantity)}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="link danger"
-                  onClick={() => removeLine(l.productId)}
-                >
-                  Remover
-                </button>
+                <div className="actions">
+                  <div className="qty-stepper">
+                    <button
+                      type="button"
+                      onClick={() => setQty(l.productId, l.quantity - 1)}
+                      disabled={l.quantity <= 1}
+                      aria-label="Diminuir"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={l.quantity}
+                      onChange={(e) =>
+                        setQty(l.productId, Number(e.target.value) || 1)
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setQty(l.productId, l.quantity + 1)}
+                      aria-label="Aumentar"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-btn danger"
+                    onClick={() => removeLine(l.productId)}
+                    aria-label="Remover item"
+                    title="Remover"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -270,12 +364,21 @@ export default function OrderForm() {
         </div>
 
         <div className="field">
-          <span className="field-label">Agendamento (opcional)</span>
-          <input
-            type="datetime-local"
-            value={scheduledFor}
-            onChange={(e) => setScheduledFor(e.target.value)}
-          />
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={isScheduled}
+              onChange={(e) => setIsScheduled(e.target.checked)}
+            />
+            É um agendamento?
+          </label>
+          {isScheduled && (
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+            />
+          )}
         </div>
 
         <textarea
@@ -296,15 +399,65 @@ export default function OrderForm() {
 
         {error && <p className="error">{error}</p>}
 
-        <div className="actions">
-          <Link className="link" to="/orders">
+        <div className="form-actions">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => navigate('/orders')}
+          >
             Cancelar
-          </Link>
+          </button>
           <button type="submit" disabled={save.isPending}>
             {save.isPending ? '...' : editing ? 'Salvar' : 'Criar pedido'}
           </button>
         </div>
       </form>
+
+      {newCustomer && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setNewCustomer(false);
+          }}
+        >
+          <form
+            className="modal"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setNcError(null);
+              if (ncName.trim().length >= 2) createCustomer.mutate();
+            }}
+          >
+            <h3>Novo cliente</h3>
+            <input
+              placeholder="Nome *"
+              value={ncName}
+              onChange={(e) => setNcName(e.target.value)}
+              autoFocus
+              required
+              minLength={2}
+            />
+            <input
+              placeholder="WhatsApp"
+              value={ncPhone}
+              onChange={(e) => setNcPhone(e.target.value)}
+            />
+            {ncError && <p className="error">{ncError}</p>}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="link"
+                onClick={() => setNewCustomer(false)}
+              >
+                Cancelar
+              </button>
+              <button type="submit" disabled={createCustomer.isPending}>
+                {createCustomer.isPending ? '...' : 'Salvar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
