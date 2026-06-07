@@ -470,6 +470,15 @@ button.link.danger {
 .pay-form {
   margin-top: 0.6rem;
 }
+.delivery-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+.delivery-info .actions {
+  margin-top: 0.5rem;
+}
 .store-subtotal {
   margin-top: 0.5rem;
   padding-top: 0.5rem;

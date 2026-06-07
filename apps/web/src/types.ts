@@ -55,6 +55,25 @@ export type PaymentStatus =
 export type DeliveryStatus = 'PENDING' | 'SHIPPED' | 'RECEIVED';
 export type DiscountType = 'NONE' | 'FIXED' | 'PERCENT';
 export type PaymentMethod = 'PIX' | 'CASH' | 'CARD' | 'OTHER';
+export type DeliveryMethod =
+  | 'PICKUP'
+  | 'OWN_DELIVERY'
+  | 'UBER'
+  | 'MOTOBOY'
+  | 'CORREIOS'
+  | 'OTHER';
+
+export interface Delivery {
+  id: string;
+  method: DeliveryMethod;
+  recipientName: string | null;
+  address: string | null;
+  courierName: string | null;
+  cost: string | null;
+  shippedAt: string | null;
+  receivedAt: string | null;
+  notes: string | null;
+}
 
 export interface Payment {
   id: string;
@@ -96,5 +115,6 @@ export interface Order {
   items: OrderItem[];
   customer?: Customer;
   payments?: Payment[];
+  deliveries?: Delivery[];
   owner?: { id: string; name: string; email: string };
 }

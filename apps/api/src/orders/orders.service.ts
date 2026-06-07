@@ -14,6 +14,7 @@ import {
 } from '../generated/prisma/enums';
 import { CreateOrderDto, OrderItemInput, UpdateOrderDto } from './orders.dto';
 import { CreatePaymentDto } from './payments.dto';
+import { CreateDeliveryDto, UpdateDeliveryDto } from './deliveries.dto';
 
 /** Transições válidas de produção (regra 4.1). */
 const STATUS_FLOW: Record<OrderStatus, OrderStatus[]> = {
@@ -356,6 +357,122 @@ export class OrdersService {
         ...(deltaOrders > 0 ? { lastOrderAt: new Date() } : {}),
       },
     });
+  }
+
+  // ---------- entrega ----------
+
+  async createDelivery(ownerId: string, orderId: string, dto: CreateDeliveryDto) {
+    const order = await this.loadOwned(ownerId, orderId);
+    if (order.status === 'CANCELED') {
+      throw new BadRequestException('Pedido cancelado');
+    }
+    const existing = await this.prisma.delivery.findFirst({
+      where: { orderId, deletedAt: null },
+    });
+    if (existing) throw new BadRequestException('Pedido já tem entrega');
+
+    await this.prisma.delivery.create({
+      data: {
+        orderId,
+        method: dto.method,
+        recipientName: dto.recipientName,
+        address: dto.address,
+        courierName: dto.courierName,
+        cost: dto.cost,
+        notes: dto.notes,
+      },
+    });
+    return this.get(ownerId, orderId);
+  }
+
+  async updateDelivery(
+    ownerId: string,
+    deliveryId: string,
+    dto: UpdateDeliveryDto,
+  ) {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id: deliveryId, deletedAt: null },
+      include: { order: true },
+    });
+    if (
+      !delivery ||
+      delivery.order.ownerId !== ownerId ||
+      delivery.order.deletedAt
+    ) {
+      throw new NotFoundException('Entrega não encontrada');
+    }
+    const order = delivery.order;
+    const method = dto.method ?? (delivery.method as string);
+
+    let deliveryStatus: string | undefined;
+    let shippedAt: Date | undefined;
+    let receivedAt: Date | undefined;
+
+    if (dto.setShipped && method !== 'PICKUP') {
+      shippedAt = new Date();
+      deliveryStatus = 'SHIPPED';
+    }
+    if (dto.setReceived) {
+      if (!['PAID', 'OVERPAID'].includes(order.paymentStatus)) {
+        throw new BadRequestException(
+          'Pague o saldo antes de marcar como recebido (regra 4.4.1)',
+        );
+      }
+      receivedAt = new Date();
+      deliveryStatus = 'RECEIVED';
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.delivery.update({
+        where: { id: deliveryId },
+        data: {
+          ...(dto.method !== undefined ? { method: dto.method } : {}),
+          ...(dto.recipientName !== undefined
+            ? { recipientName: dto.recipientName }
+            : {}),
+          ...(dto.address !== undefined ? { address: dto.address } : {}),
+          ...(dto.courierName !== undefined
+            ? { courierName: dto.courierName }
+            : {}),
+          ...(dto.cost !== undefined ? { cost: dto.cost } : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+          ...(shippedAt ? { shippedAt } : {}),
+          ...(receivedAt ? { receivedAt } : {}),
+        },
+      });
+      if (deliveryStatus) {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { deliveryStatus: deliveryStatus as never },
+        });
+      }
+    });
+    return this.get(ownerId, order.id);
+  }
+
+  async removeDelivery(ownerId: string, deliveryId: string) {
+    const delivery = await this.prisma.delivery.findFirst({
+      where: { id: deliveryId, deletedAt: null },
+      include: { order: true },
+    });
+    if (
+      !delivery ||
+      delivery.order.ownerId !== ownerId ||
+      delivery.order.deletedAt
+    ) {
+      throw new NotFoundException('Entrega não encontrada');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.delivery.update({
+        where: { id: deliveryId },
+        data: { deletedAt: new Date() },
+      });
+      await tx.order.update({
+        where: { id: delivery.orderId },
+        data: { deliveryStatus: 'PENDING' },
+      });
+    });
+    return this.get(ownerId, delivery.orderId);
   }
 
   // ---------- consultas ----------

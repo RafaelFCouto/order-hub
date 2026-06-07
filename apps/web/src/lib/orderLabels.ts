@@ -1,4 +1,5 @@
 import type {
+  DeliveryMethod,
   DeliveryStatus,
   OrderStatus,
   PaymentMethod,
@@ -30,6 +31,15 @@ export const METHOD_LABEL: Record<PaymentMethod, string> = {
   PIX: 'PIX',
   CASH: 'Dinheiro',
   CARD: 'Cartão',
+  OTHER: 'Outro',
+};
+
+export const DELIVERY_METHOD_LABEL: Record<DeliveryMethod, string> = {
+  PICKUP: 'Retirada',
+  OWN_DELIVERY: 'Entrega própria',
+  UBER: 'Uber',
+  MOTOBOY: 'Motoboy',
+  CORREIOS: 'Correios',
   OTHER: 'Outro',
 };
 

@@ -6,6 +6,7 @@ import { brl } from '../lib/format';
 import { waLink } from '../lib/whatsapp';
 import {
   DELIVERY_LABEL,
+  DELIVERY_METHOD_LABEL,
   METHOD_LABEL,
   NEXT_STATUS,
   PAYMENT_LABEL,
@@ -13,7 +14,13 @@ import {
   isEditable,
 } from '../lib/orderLabels';
 import Select from '../components/Select';
-import type { Order, OrderStatus, PaymentMethod, Store } from '../types';
+import type {
+  DeliveryMethod,
+  Order,
+  OrderStatus,
+  PaymentMethod,
+  Store,
+} from '../types';
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -23,6 +30,13 @@ export default function OrderDetail() {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('PIX');
   const [error, setError] = useState<string | null>(null);
+
+  // entrega
+  const [delMethod, setDelMethod] = useState<DeliveryMethod>('PICKUP');
+  const [delRecipient, setDelRecipient] = useState('');
+  const [delAddress, setDelAddress] = useState('');
+  const [delCourier, setDelCourier] = useState('');
+  const [delCost, setDelCost] = useState('');
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -56,6 +70,44 @@ export default function OrderDetail() {
 
   const removePayment = useMutation({
     mutationFn: (pid: string) => api(`/payments/${pid}`, { method: 'DELETE' }),
+    onSuccess: refresh,
+  });
+
+  const createDelivery = useMutation({
+    mutationFn: () =>
+      api(`/orders/${id}/deliveries`, {
+        method: 'POST',
+        body: JSON.stringify({
+          method: delMethod,
+          recipientName: delRecipient || undefined,
+          address: delAddress || undefined,
+          courierName: delCourier || undefined,
+          cost: delCost ? Number(delCost) : undefined,
+        }),
+      }),
+    onSuccess: () => {
+      setDelRecipient('');
+      setDelAddress('');
+      setDelCourier('');
+      setDelCost('');
+      refresh();
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Erro'),
+  });
+
+  const patchDelivery = useMutation({
+    mutationFn: (vars: { did: string; body: Record<string, unknown> }) =>
+      api(`/deliveries/${vars.did}`, {
+        method: 'PATCH',
+        body: JSON.stringify(vars.body),
+      }),
+    onSuccess: refresh,
+    onError: (e) => setError(e instanceof Error ? e.message : 'Erro'),
+  });
+
+  const removeDelivery = useMutation({
+    mutationFn: (did: string) =>
+      api(`/deliveries/${did}`, { method: 'DELETE' }),
     onSuccess: refresh,
   });
 
@@ -94,6 +146,8 @@ export default function OrderDetail() {
     {},
   );
   const next = NEXT_STATUS[order.status];
+  const delivery = order.deliveries?.[0];
+  const balanceOpen = Number(order.balanceDue) > 0;
 
   return (
     <div className="page">
@@ -268,6 +322,136 @@ export default function OrderDetail() {
         )}
         {error && <p className="error">{error}</p>}
       </div>
+
+      {/* entrega */}
+      {order.status !== 'CANCELED' && (
+        <div className="card">
+          <span className="field-label">Entrega</span>
+          {!delivery ? (
+            <div className="row-form">
+              <Select
+                value={delMethod}
+                onChange={(v) => setDelMethod(v as DeliveryMethod)}
+                options={(
+                  Object.keys(DELIVERY_METHOD_LABEL) as DeliveryMethod[]
+                ).map((m) => ({ value: m, label: DELIVERY_METHOD_LABEL[m] }))}
+              />
+              {delMethod !== 'PICKUP' && (
+                <input
+                  placeholder="Endereço"
+                  value={delAddress}
+                  onChange={(e) => setDelAddress(e.target.value)}
+                />
+              )}
+              <input
+                placeholder="Destinatário"
+                value={delRecipient}
+                onChange={(e) => setDelRecipient(e.target.value)}
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Custo R$"
+                value={delCost}
+                onChange={(e) => setDelCost(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={createDelivery.isPending}
+                onClick={() => createDelivery.mutate()}
+              >
+                Registrar entrega
+              </button>
+            </div>
+          ) : (
+            <div className="delivery-info">
+              <div className="line-row">
+                <strong>{DELIVERY_METHOD_LABEL[delivery.method]}</strong>
+                <button
+                  type="button"
+                  className="icon-btn danger"
+                  aria-label="Remover entrega"
+                  title="Remover entrega"
+                  onClick={() => {
+                    if (confirm('Remover entrega?'))
+                      removeDelivery.mutate(delivery.id);
+                  }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </button>
+              </div>
+              {delivery.address && (
+                <div className="muted small">{delivery.address}</div>
+              )}
+              {delivery.recipientName && (
+                <div className="muted small">Para: {delivery.recipientName}</div>
+              )}
+              {delivery.cost && Number(delivery.cost) > 0 && (
+                <div className="muted small">Custo: {brl(delivery.cost)}</div>
+              )}
+              <div className="actions">
+                {delivery.method !== 'PICKUP' &&
+                  !delivery.shippedAt &&
+                  !delivery.receivedAt && (
+                    <button
+                      className="btn-secondary"
+                      onClick={() =>
+                        patchDelivery.mutate({
+                          did: delivery.id,
+                          body: { setShipped: true },
+                        })
+                      }
+                    >
+                      Marcar enviado
+                    </button>
+                  )}
+                {!delivery.receivedAt && (
+                  <button
+                    onClick={() =>
+                      patchDelivery.mutate({
+                        did: delivery.id,
+                        body: { setReceived: true },
+                      })
+                    }
+                    disabled={balanceOpen}
+                    title={
+                      balanceOpen ? 'Pague o saldo para marcar recebido' : ''
+                    }
+                  >
+                    Marcar recebido
+                  </button>
+                )}
+                {delivery.receivedAt && (
+                  <span className="muted small">
+                    Recebido em{' '}
+                    {new Date(delivery.receivedAt).toLocaleString('pt-BR')}
+                  </span>
+                )}
+              </div>
+              {balanceOpen && !delivery.receivedAt && (
+                <p className="muted small">
+                  Saldo em aberto — quite para liberar "Receber".
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ações */}
       {order.status !== 'CANCELED' && (

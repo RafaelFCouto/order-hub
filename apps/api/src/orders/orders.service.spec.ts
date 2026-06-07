@@ -218,6 +218,62 @@ describe('OrdersService', () => {
     expect(Number(c.totalSpent)).toBe(0);
   });
 
+  it('entrega: envia, trava recebido sem pagar, recebe após pagar', async () => {
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodB, quantity: 1 }], // 25
+    });
+    const d = await service.createDelivery(USER.id, order.id, {
+      method: 'MOTOBOY',
+      cost: 8,
+    });
+    expect(d.deliveries).toHaveLength(1);
+    const delivId = d.deliveries[0].id;
+
+    // segunda entrega no mesmo pedido falha
+    await expect(
+      service.createDelivery(USER.id, order.id, { method: 'PICKUP' }),
+    ).rejects.toThrow();
+
+    // marca enviado
+    const shipped = await service.updateDelivery(USER.id, delivId, {
+      setShipped: true,
+    });
+    expect(shipped.deliveryStatus).toBe('SHIPPED');
+
+    // receber sem pagar -> bloqueia (regra 4.4.1)
+    await expect(
+      service.updateDelivery(USER.id, delivId, { setReceived: true }),
+    ).rejects.toThrow();
+
+    // paga e recebe
+    await service.addPayment(USER.id, order.id, { amount: 25, method: 'PIX' });
+    const received = await service.updateDelivery(USER.id, delivId, {
+      setReceived: true,
+    });
+    expect(received.deliveryStatus).toBe('RECEIVED');
+
+    // remover entrega volta a PENDING
+    const undone = await service.removeDelivery(USER.id, delivId);
+    expect(undone.deliveryStatus).toBe('PENDING');
+    expect(undone.deliveries).toHaveLength(0);
+  });
+
+  it('entrega PICKUP recebe direto', async () => {
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodA, quantity: 1 }], // 10
+    });
+    await service.addPayment(USER.id, order.id, { amount: 10, method: 'CASH' });
+    const d = await service.createDelivery(USER.id, order.id, {
+      method: 'PICKUP',
+    });
+    const received = await service.updateDelivery(USER.id, d.deliveries[0].id, {
+      setReceived: true,
+    });
+    expect(received.deliveryStatus).toBe('RECEIVED');
+  });
+
   it('bloqueia acesso de outro dono', async () => {
     const other: AuthUser = { id: 'intruso-ord', email: 'i@x.com', name: 'I' };
     await prisma.user.create({
