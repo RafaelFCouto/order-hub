@@ -104,6 +104,10 @@ export default function Orders() {
           {filtered.map((o) => {
             const lojas = [...new Set(o.items.map((i) => i.storeId))];
             const next = NEXT_STATUS[o.status];
+            const parts = o.items.map((i) => `${i.quantity}× ${i.productName}`);
+            const resumo =
+              parts.slice(0, 2).join(', ') +
+              (parts.length > 2 ? ` +${parts.length - 2}` : '');
             return (
               <li key={o.id} className="card order-item">
                 <div className="order-main">
@@ -111,8 +115,9 @@ export default function Orders() {
                     <strong>#{o.code}</strong>
                     <span className="muted">{brl(o.total)}</span>
                   </Link>
+                  {resumo && <div className="muted small order-summary">{resumo}</div>}
 
-                  <div className="customer-block">
+                  <div className="customer-inline">
                     <strong>{o.customer?.name ?? 'Cliente'}</strong>
                     {o.customer?.phone &&
                       (waLink(o.customer.phone) ? (
@@ -131,6 +136,28 @@ export default function Orders() {
                   </div>
 
                   <div className="badges">
+                    {o.scheduledFor &&
+                      (() => {
+                        const d = new Date(o.scheduledFor);
+                        const late =
+                          d < new Date() &&
+                          o.status !== 'READY' &&
+                          o.status !== 'CANCELED';
+                        return (
+                          <span
+                            className={`badge ${late ? 'status-late' : 'status-scheduled'}`}
+                          >
+                            📅{' '}
+                            {d.toLocaleString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {late && ' · atrasado'}
+                          </span>
+                        );
+                      })()}
                     <span className={`badge status-${o.status.toLowerCase()}`}>
                       {STATUS_LABEL[o.status]}
                     </span>

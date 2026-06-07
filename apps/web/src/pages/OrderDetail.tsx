@@ -141,21 +141,28 @@ export default function OrderDetail() {
       </div>
 
       {/* itens por loja */}
-      {Object.entries(byStore).map(([sid, items]) => (
-        <div key={sid} className="card">
-          <span className="field-label">{storeName(sid)}</span>
-          <ul className="list-plain">
-            {items.map((i) => (
-              <li key={i.id} className="line-row">
-                <span>
-                  {i.quantity}× {i.productName}
-                </span>
-                <span className="muted">{brl(i.lineTotal)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      {Object.entries(byStore).map(([sid, items]) => {
+        const subtotal = items.reduce((s, i) => s + Number(i.lineTotal), 0);
+        return (
+          <div key={sid} className="card">
+            <span className="field-label">{storeName(sid)}</span>
+            <ul className="list-plain">
+              {items.map((i) => (
+                <li key={i.id} className="line-row">
+                  <span>
+                    {i.quantity}× {i.productName}
+                  </span>
+                  <span className="muted">{brl(i.lineTotal)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="line-row store-subtotal">
+              <span className="muted">Subtotal</span>
+              <strong>{brl(subtotal)}</strong>
+            </div>
+          </div>
+        );
+      })}
 
       {/* totais */}
       <div className="card totals-box">

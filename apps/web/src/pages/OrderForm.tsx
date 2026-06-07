@@ -4,7 +4,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { brl } from '../lib/format';
 import Select from '../components/Select';
-import type { Customer, DiscountType, Order, Product, Store } from '../types';
+import { METHOD_LABEL } from '../lib/orderLabels';
+import type {
+  Customer,
+  DiscountType,
+  Order,
+  PaymentMethod,
+  Product,
+  Store,
+} from '../types';
 
 interface Line {
   productId: string;
@@ -29,6 +37,11 @@ export default function OrderForm() {
   const [scheduledFor, setScheduledFor] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // sinal/entrada (só na criação)
+  const [hasDownPayment, setHasDownPayment] = useState(false);
+  const [downAmount, setDownAmount] = useState('');
+  const [downMethod, setDownMethod] = useState<PaymentMethod>('PIX');
 
   // builder de item
   const [pickStore, setPickStore] = useState('');
@@ -155,7 +168,7 @@ export default function OrderForm() {
   });
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const body = JSON.stringify({
         customerId,
         items: lines.map((l) => ({
@@ -171,9 +184,21 @@ export default function OrderForm() {
             : null,
         notes: notes || undefined,
       });
-      return editing
-        ? api<Order>(`/orders/${id}`, { method: 'PATCH', body })
-        : api<Order>('/orders', { method: 'POST', body });
+      if (editing) {
+        return api<Order>(`/orders/${id}`, { method: 'PATCH', body });
+      }
+      const created = await api<Order>('/orders', { method: 'POST', body });
+      // registra o sinal junto, se informado
+      if (hasDownPayment && Number(downAmount) > 0) {
+        await api(`/orders/${created.id}/payments`, {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: Number(downAmount),
+            method: downMethod,
+          }),
+        });
+      }
+      return created;
     },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['orders'] });
@@ -397,6 +422,38 @@ export default function OrderForm() {
           </div>
           <strong className="order-total">Total: {brl(totals.total)}</strong>
         </div>
+
+        {!editing && (
+          <div className="field">
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={hasDownPayment}
+                onChange={(e) => setHasDownPayment(e.target.checked)}
+              />
+              Recebeu sinal/entrada?
+            </label>
+            {hasDownPayment && (
+              <div className="row-form">
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="Valor do sinal R$"
+                  value={downAmount}
+                  onChange={(e) => setDownAmount(e.target.value)}
+                />
+                <Select
+                  value={downMethod}
+                  onChange={(v) => setDownMethod(v as PaymentMethod)}
+                  options={(Object.keys(METHOD_LABEL) as PaymentMethod[]).map(
+                    (m) => ({ value: m, label: METHOD_LABEL[m] }),
+                  )}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {error && <p className="error">{error}</p>}
 

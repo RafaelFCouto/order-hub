@@ -426,10 +426,21 @@ button.link.danger {
 .order-line strong {
   color: var(--primary);
 }
+.order-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .customer-block {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+.customer-inline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 .customer-block > strong {
   font-size: 1.05rem;
@@ -459,6 +470,11 @@ button.link.danger {
 .pay-form {
   margin-top: 0.6rem;
 }
+.store-subtotal {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
 .badges {
   display: flex;
   flex-wrap: wrap;
@@ -479,6 +495,16 @@ button.link.danger {
 .status-canceled {
   background: #fee2e2;
   color: #991b1b;
+}
+.status-scheduled {
+  background: #ede9fe;
+  color: #5b21b6;
+  font-weight: 700;
+}
+.status-late {
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
 }
 .order-form {
   display: flex;
