@@ -409,14 +409,55 @@ button.link.danger {
   gap: 0.6rem;
   align-items: stretch;
 }
+.order-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
 .order-line {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
   flex-wrap: wrap;
+  text-decoration: none;
+  color: inherit;
 }
 .order-line strong {
   color: var(--primary);
+}
+.customer-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.customer-block > strong {
+  font-size: 1.05rem;
+}
+.list-plain {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.line-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+.totals-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.totals-box .balance strong {
+  color: var(--danger);
+}
+.pay-form {
+  margin-top: 0.6rem;
 }
 .badges {
   display: flex;

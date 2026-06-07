@@ -9,6 +9,7 @@ import Products from './pages/Products';
 import Categories from './pages/Categories';
 import Orders from './pages/Orders';
 import OrderForm from './pages/OrderForm';
+import OrderDetail from './pages/OrderDetail';
 
 export default function App() {
   const { session, loading } = useAuth();
@@ -32,7 +33,8 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/orders/new" element={<OrderForm />} />
-        <Route path="/orders/:id" element={<OrderForm />} />
+        <Route path="/orders/:id" element={<OrderDetail />} />
+        <Route path="/orders/:id/edit" element={<OrderForm />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/products" element={<Products />} />
         <Route path="/categories" element={<Categories />} />

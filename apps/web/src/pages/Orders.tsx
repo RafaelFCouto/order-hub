@@ -3,35 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { brl } from '../lib/format';
+import { waLink } from '../lib/whatsapp';
+import { NEXT_STATUS, PAYMENT_LABEL, STATUS_LABEL, isEditable } from '../lib/orderLabels';
 import Select from '../components/Select';
 import type { Order, OrderStatus, Store } from '../types';
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  PENDING: 'Pendente',
-  IN_PRODUCTION: 'Em produção',
-  READY: 'Pronto',
-  CANCELED: 'Cancelado',
-};
-
-const PAYMENT_LABEL: Record<string, string> = {
-  UNPAID: '🔴 Não pago',
-  PARTIAL: '🟡 Parcial',
-  PAID: '🟢 Pago',
-  OVERPAID: '🔵 Pago a mais',
-  REFUNDED: '↩️ Estornado',
-};
-
-// próximo passo de produção (botão de avançar)
-const NEXT_STATUS: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
-  PENDING: { to: 'IN_PRODUCTION', label: 'Iniciar produção' },
-  IN_PRODUCTION: { to: 'READY', label: 'Marcar pronto' },
-};
 
 export default function Orders() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [storeId, setStoreId] = useState('');
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
 
   const { data: stores } = useQuery({
     queryKey: ['stores'],
@@ -67,6 +49,14 @@ export default function Orders() {
     onSuccess: invalidate,
   });
 
+  const term = search.trim().toLowerCase();
+  const filtered = (orders ?? []).filter((o) => {
+    if (!term) return true;
+    const name = o.customer?.name?.toLowerCase() ?? '';
+    const phone = o.customer?.phone ?? '';
+    return name.includes(term) || phone.includes(term);
+  });
+
   return (
     <div className="page">
       <div className="page-head">
@@ -99,26 +89,47 @@ export default function Orders() {
           ]}
         />
       </div>
+      <input
+        placeholder="Buscar cliente (nome ou telefone)..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
 
       {isLoading ? (
         <p className="muted">Carregando...</p>
-      ) : !orders?.length ? (
+      ) : !filtered.length ? (
         <p className="muted">Nenhum pedido.</p>
       ) : (
         <ul className="list">
-          {orders.map((o) => {
+          {filtered.map((o) => {
             const lojas = [...new Set(o.items.map((i) => i.storeId))];
             const next = NEXT_STATUS[o.status];
-            const editable =
-              o.status === 'PENDING' || o.status === 'IN_PRODUCTION';
             return (
               <li key={o.id} className="card order-item">
                 <div className="order-main">
-                  <div className="order-line">
+                  <Link className="order-line" to={`/orders/${o.id}`}>
                     <strong>#{o.code}</strong>
-                    <span>{o.customer?.name ?? 'Cliente'}</span>
                     <span className="muted">{brl(o.total)}</span>
+                  </Link>
+
+                  <div className="customer-block">
+                    <strong>{o.customer?.name ?? 'Cliente'}</strong>
+                    {o.customer?.phone &&
+                      (waLink(o.customer.phone) ? (
+                        <a
+                          className="wa"
+                          href={waLink(o.customer.phone)!}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {o.customer.phone}
+                        </a>
+                      ) : (
+                        <span className="muted">{o.customer.phone}</span>
+                      ))}
                   </div>
+
                   <div className="badges">
                     <span className={`badge status-${o.status.toLowerCase()}`}>
                       {STATUS_LABEL[o.status]}
@@ -143,10 +154,10 @@ export default function Orders() {
                       {next.label}
                     </button>
                   )}
-                  {editable && (
+                  {isEditable(o.status) && (
                     <button
                       className="link"
-                      onClick={() => navigate(`/orders/${o.id}`)}
+                      onClick={() => navigate(`/orders/${o.id}/edit`)}
                     >
                       Editar
                     </button>

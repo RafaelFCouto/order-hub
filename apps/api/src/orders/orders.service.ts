@@ -13,6 +13,7 @@ import {
   PaymentStatus,
 } from '../generated/prisma/enums';
 import { CreateOrderDto, OrderItemInput, UpdateOrderDto } from './orders.dto';
+import { CreatePaymentDto } from './payments.dto';
 
 /** Transições válidas de produção (regra 4.1). */
 const STATUS_FLOW: Record<OrderStatus, OrderStatus[]> = {
@@ -135,28 +136,32 @@ export class OrdersService {
     const t = this.computeTotals(items, discountType, discountValue, deliveryFee);
     const paymentStatus = this.derivePaymentStatus(0, t.total);
 
-    return this.prisma.order.create({
-      data: {
-        ownerId,
-        customerId: dto.customerId,
-        status: 'PENDING',
-        paymentStatus,
-        deliveryStatus: 'PENDING',
-        scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : null,
-        itemsTotal: t.itemsTotal,
-        discountType,
-        discountValue,
-        discountAmount: t.discountAmount,
-        hasStoreDiscount: t.hasStoreDiscount,
-        overrideValue: t.overrideValue,
-        deliveryFee,
-        total: t.total,
-        paidTotal: 0,
-        balanceDue: t.total,
-        notes: dto.notes,
-        items: { create: items },
-      },
-      include: { items: true },
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          ownerId,
+          customerId: dto.customerId,
+          status: 'PENDING',
+          paymentStatus,
+          deliveryStatus: 'PENDING',
+          scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : null,
+          itemsTotal: t.itemsTotal,
+          discountType,
+          discountValue,
+          discountAmount: t.discountAmount,
+          hasStoreDiscount: t.hasStoreDiscount,
+          overrideValue: t.overrideValue,
+          deliveryFee,
+          total: t.total,
+          paidTotal: 0,
+          balanceDue: t.total,
+          notes: dto.notes,
+          items: { create: items },
+        },
+        include: { items: true },
+      });
+      await this.bumpCustomer(tx, dto.customerId, t.total, 1);
+      return order;
     });
   }
 
@@ -189,6 +194,10 @@ export class OrdersService {
     const paidTotal = Number(order.paidTotal);
     const paymentStatus = this.derivePaymentStatus(paidTotal, t.total);
 
+    const oldTotal = Number(order.total);
+    const oldCustomer = order.customerId;
+    const newCustomer = dto.customerId ?? order.customerId;
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {
         await tx.orderItem.updateMany({
@@ -199,10 +208,10 @@ export class OrdersService {
           data: items.map((i) => ({ ...i, orderId: id })),
         });
       }
-      return tx.order.update({
+      const updated = await tx.order.update({
         where: { id },
         data: {
-          customerId: dto.customerId ?? order.customerId,
+          customerId: newCustomer,
           scheduledFor:
             dto.scheduledFor !== undefined
               ? dto.scheduledFor
@@ -223,6 +232,15 @@ export class OrdersService {
         },
         include: { items: { where: { deletedAt: null } } },
       });
+
+      // resumo do cliente (regra: baseado em order.total)
+      if (newCustomer === oldCustomer) {
+        await this.bumpCustomer(tx, oldCustomer, t.total - oldTotal, 0);
+      } else {
+        await this.bumpCustomer(tx, oldCustomer, -oldTotal, -1);
+        await this.bumpCustomer(tx, newCustomer, t.total, 1);
+      }
+      return updated;
     });
   }
 
@@ -244,12 +262,100 @@ export class OrdersService {
 
   /** Soft-delete = cancela. Não estorna pagamentos (regra 4.4.3, manual). */
   async remove(ownerId: string, id: string) {
-    await this.loadOwned(ownerId, id);
-    await this.prisma.order.update({
-      where: { id },
-      data: { deletedAt: new Date(), status: 'CANCELED' },
+    const order = await this.loadOwned(ownerId, id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id },
+        data: { deletedAt: new Date(), status: 'CANCELED' },
+      });
+      await this.bumpCustomer(tx, order.customerId, -Number(order.total), -1);
     });
     return { ok: true };
+  }
+
+  // ---------- pagamentos ----------
+
+  async addPayment(ownerId: string, orderId: string, dto: CreatePaymentDto) {
+    await this.loadOwned(ownerId, orderId); // escopo + 404
+    await this.prisma.payment.create({
+      data: {
+        orderId,
+        amount: dto.amount,
+        method: dto.method,
+        paidAt: dto.paidAt ? new Date(dto.paidAt) : new Date(),
+        notes: dto.notes,
+      },
+    });
+    return this.recalcPayment(orderId);
+  }
+
+  async removePayment(ownerId: string, paymentId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { id: paymentId, deletedAt: null },
+      include: { order: true },
+    });
+    if (!payment || payment.order.ownerId !== ownerId || payment.order.deletedAt) {
+      throw new NotFoundException('Pagamento não encontrado');
+    }
+    await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { deletedAt: new Date() },
+    });
+    return this.recalcPayment(payment.orderId);
+  }
+
+  /** Recalcula paidTotal/balanceDue/paymentStatus do pedido (regra 4.2). */
+  private async recalcPayment(orderId: string) {
+    const order = await this.prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+    });
+    const active = await this.prisma.payment.aggregate({
+      where: { orderId, deletedAt: null },
+      _sum: { amount: true },
+    });
+    const paidTotal = money(Number(active._sum.amount ?? 0));
+    const total = Number(order.total);
+
+    let paymentStatus = this.derivePaymentStatus(paidTotal, total);
+    if (paidTotal === 0) {
+      // se já houve pagamento (algum soft-deleted), zerar = REFUNDED
+      const had = await this.prisma.payment.count({
+        where: { orderId, deletedAt: { not: null } },
+      });
+      if (had > 0) paymentStatus = 'REFUNDED';
+    }
+
+    return this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        paidTotal,
+        balanceDue: money(total - paidTotal),
+        paymentStatus,
+      },
+      include: {
+        items: { where: { deletedAt: null } },
+        payments: { where: { deletedAt: null } },
+      },
+    });
+  }
+
+  /** Mantém o resumo denormalizado do cliente. */
+  private async bumpCustomer(
+    tx: Pick<PrismaService, 'customer'>,
+    customerId: string,
+    deltaTotal: number,
+    deltaOrders: number,
+  ) {
+    const c = await tx.customer.findUnique({ where: { id: customerId } });
+    if (!c) return;
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        totalOrders: Math.max(0, c.totalOrders + deltaOrders),
+        totalSpent: money(Number(c.totalSpent) + deltaTotal),
+        ...(deltaOrders > 0 ? { lastOrderAt: new Date() } : {}),
+      },
+    });
   }
 
   // ---------- consultas ----------
@@ -304,9 +410,10 @@ export class OrdersService {
       where: { id, ownerId, deletedAt: null },
       include: {
         items: { where: { deletedAt: null } },
-        payments: { where: { deletedAt: null } },
+        payments: { where: { deletedAt: null }, orderBy: { paidAt: 'desc' } },
         deliveries: { where: { deletedAt: null } },
         customer: true,
+        owner: { select: { id: true, name: true, email: true } },
       },
     });
     if (!order) throw new NotFoundException('Pedido não encontrado');

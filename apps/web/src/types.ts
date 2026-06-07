@@ -54,6 +54,15 @@ export type PaymentStatus =
   | 'REFUNDED';
 export type DeliveryStatus = 'PENDING' | 'SHIPPED' | 'RECEIVED';
 export type DiscountType = 'NONE' | 'FIXED' | 'PERCENT';
+export type PaymentMethod = 'PIX' | 'CASH' | 'CARD' | 'OTHER';
+
+export interface Payment {
+  id: string;
+  amount: string;
+  method: PaymentMethod;
+  paidAt: string;
+  notes: string | null;
+}
 
 export interface OrderItem {
   id: string;
@@ -86,4 +95,6 @@ export interface Order {
   createdAt: string;
   items: OrderItem[];
   customer?: Customer;
+  payments?: Payment[];
+  owner?: { id: string; name: string; email: string };
 }

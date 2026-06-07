@@ -175,9 +175,10 @@ export default function OrderForm() {
         ? api<Order>(`/orders/${id}`, { method: 'PATCH', body })
         : api<Order>('/orders', { method: 'POST', body });
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['orders'] });
-      navigate('/orders');
+      if (editing) qc.invalidateQueries({ queryKey: ['order', id] });
+      navigate(`/orders/${saved.id}`);
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Erro'),
   });

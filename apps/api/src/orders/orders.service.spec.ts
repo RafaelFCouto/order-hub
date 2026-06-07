@@ -158,6 +158,66 @@ describe('OrdersService', () => {
     );
   });
 
+  it('pagamento parcial, quitação, sobra e estorno', async () => {
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodB, quantity: 2 }], // total 50
+    });
+
+    // parcial
+    let o = await service.addPayment(USER.id, order.id, {
+      amount: 20,
+      method: 'PIX',
+    });
+    expect(o.paymentStatus).toBe('PARTIAL');
+    expect(Number(o.paidTotal)).toBe(20);
+    expect(Number(o.balanceDue)).toBe(30);
+
+    // quita
+    const p2 = await service.addPayment(USER.id, order.id, {
+      amount: 30,
+      method: 'CASH',
+    });
+    expect(p2.paymentStatus).toBe('PAID');
+    expect(Number(p2.balanceDue)).toBe(0);
+
+    // paga a mais (novo pedido)
+    const over = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodA, quantity: 1 }], // 10
+    });
+    const po = await service.addPayment(USER.id, over.id, {
+      amount: 15,
+      method: 'CASH',
+    });
+    expect(po.paymentStatus).toBe('OVERPAID');
+
+    // estorna tudo do 1º pedido -> REFUNDED
+    const pays = await service.get(USER.id, order.id);
+    for (const pay of pays.payments) {
+      o = await service.removePayment(USER.id, pay.id);
+    }
+    expect(Number(o.paidTotal)).toBe(0);
+    expect(o.paymentStatus).toBe('REFUNDED');
+  });
+
+  it('mantém o resumo do cliente (total no create, baixa no cancel)', async () => {
+    const cli = await customers.create(USER.id, { name: 'Resumo' });
+    const order = await service.create(USER.id, {
+      customerId: cli.id,
+      items: [{ productId: prodB, quantity: 2 }], // 50
+    });
+    let c = await customers.get(USER.id, cli.id);
+    expect(c.totalOrders).toBe(1);
+    expect(Number(c.totalSpent)).toBe(50);
+    expect(c.lastOrderAt).not.toBeNull();
+
+    await service.remove(USER.id, order.id);
+    c = await customers.get(USER.id, cli.id);
+    expect(c.totalOrders).toBe(0);
+    expect(Number(c.totalSpent)).toBe(0);
+  });
+
   it('bloqueia acesso de outro dono', async () => {
     const other: AuthUser = { id: 'intruso-ord', email: 'i@x.com', name: 'I' };
     await prisma.user.create({
