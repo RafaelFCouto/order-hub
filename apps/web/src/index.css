@@ -401,6 +401,42 @@ button.link.danger {
   font-size: 0.9rem;
   white-space: nowrap;
 }
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.7rem;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.stat-value {
+  font-size: 1.5rem;
+}
+.danger-text {
+  color: var(--danger);
+}
+.stat-sub {
+  margin-top: 0.2rem;
+}
+.agenda-day {
+  margin-top: 0.6rem;
+}
+@media (min-width: 768px) {
+  .cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;

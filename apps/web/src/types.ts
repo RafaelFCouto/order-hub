@@ -14,6 +14,14 @@ export interface Me {
   stores: Store[];
 }
 
+export interface DashboardSummary {
+  ordersToday: number;
+  pickupsToday: number;
+  monthRevenue: number;
+  revenueByStore: { storeId: string; storeName: string; total: number }[];
+  receivable: number;
+}
+
 export interface Category {
   id: string;
   storeId: string;
