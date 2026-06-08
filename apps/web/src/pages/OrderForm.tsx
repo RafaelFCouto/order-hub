@@ -43,6 +43,11 @@ export default function OrderForm() {
   const [downAmount, setDownAmount] = useState('');
   const [downMethod, setDownMethod] = useState<PaymentMethod>('PIX');
 
+  // lançamento passado (só na criação)
+  const [placedAt, setPlacedAt] = useState('');
+  const [completed, setCompleted] = useState(false);
+  const [completedMethod, setCompletedMethod] = useState<PaymentMethod>('CASH');
+
   // builder de item
   const [pickStore, setPickStore] = useState('');
   const [pickProduct, setPickProduct] = useState('');
@@ -187,9 +192,30 @@ export default function OrderForm() {
       if (editing) {
         return api<Order>(`/orders/${id}`, { method: 'PATCH', body });
       }
-      const created = await api<Order>('/orders', { method: 'POST', body });
-      // registra o sinal junto, se informado
-      if (hasDownPayment && Number(downAmount) > 0) {
+      const createBody = JSON.stringify({
+        customerId,
+        items: lines.map((l) => ({
+          productId: l.productId,
+          quantity: l.quantity,
+        })),
+        discountType,
+        discountValue: discountType === 'NONE' ? 0 : Number(discountValue) || 0,
+        deliveryFee: Number(deliveryFee) || 0,
+        scheduledFor:
+          isScheduled && scheduledFor
+            ? new Date(scheduledFor).toISOString()
+            : null,
+        notes: notes || undefined,
+        placedAt: placedAt ? new Date(placedAt).toISOString() : undefined,
+        completed: completed || undefined,
+        paymentMethod: completed ? completedMethod : undefined,
+      });
+      const created = await api<Order>('/orders', {
+        method: 'POST',
+        body: createBody,
+      });
+      // sinal só faz sentido em pedido não-concluído
+      if (!completed && hasDownPayment && Number(downAmount) > 0) {
         await api(`/orders/${created.id}/payments`, {
           method: 'POST',
           body: JSON.stringify({
@@ -424,35 +450,68 @@ export default function OrderForm() {
         </div>
 
         {!editing && (
-          <div className="field">
-            <label className="toggle">
+          <>
+            <div className="field">
+              <span className="field-label">Data do pedido (opcional)</span>
               <input
-                type="checkbox"
-                checked={hasDownPayment}
-                onChange={(e) => setHasDownPayment(e.target.checked)}
+                type="datetime-local"
+                value={placedAt}
+                onChange={(e) => setPlacedAt(e.target.value)}
               />
-              Recebeu sinal/entrada?
-            </label>
-            {hasDownPayment && (
-              <div className="row-form">
+            </div>
+
+            <div className="field">
+              <label className="toggle">
                 <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="Valor do sinal R$"
-                  value={downAmount}
-                  onChange={(e) => setDownAmount(e.target.value)}
+                  type="checkbox"
+                  checked={completed}
+                  onChange={(e) => setCompleted(e.target.checked)}
                 />
+                Venda já paga e entregue (lançamento passado)
+              </label>
+              {completed && (
                 <Select
-                  value={downMethod}
-                  onChange={(v) => setDownMethod(v as PaymentMethod)}
+                  value={completedMethod}
+                  onChange={(v) => setCompletedMethod(v as PaymentMethod)}
                   options={(Object.keys(METHOD_LABEL) as PaymentMethod[]).map(
                     (m) => ({ value: m, label: METHOD_LABEL[m] }),
                   )}
                 />
+              )}
+            </div>
+
+            {!completed && (
+              <div className="field">
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={hasDownPayment}
+                    onChange={(e) => setHasDownPayment(e.target.checked)}
+                  />
+                  Recebeu sinal/entrada?
+                </label>
+                {hasDownPayment && (
+                  <div className="row-form">
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      placeholder="Valor do sinal R$"
+                      value={downAmount}
+                      onChange={(e) => setDownAmount(e.target.value)}
+                    />
+                    <Select
+                      value={downMethod}
+                      onChange={(v) => setDownMethod(v as PaymentMethod)}
+                      options={(Object.keys(METHOD_LABEL) as PaymentMethod[]).map(
+                        (m) => ({ value: m, label: METHOD_LABEL[m] }),
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
 
         {error && <p className="error">{error}</p>}

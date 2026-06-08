@@ -135,16 +135,21 @@ export class OrdersService {
     const discountValue = dto.discountValue ?? 0;
     const deliveryFee = dto.deliveryFee ?? 0;
     const t = this.computeTotals(items, discountType, discountValue, deliveryFee);
-    const paymentStatus = this.derivePaymentStatus(0, t.total);
+    const placedAt = dto.placedAt ? new Date(dto.placedAt) : new Date();
+    const completed = dto.completed === true;
+    const paymentStatus = completed
+      ? this.derivePaymentStatus(t.total, t.total) // PAID (ou OVERPAID nunca aqui)
+      : this.derivePaymentStatus(0, t.total);
 
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
           ownerId,
           customerId: dto.customerId,
-          status: 'PENDING',
+          createdAt: placedAt,
+          status: completed ? 'READY' : 'PENDING',
           paymentStatus,
-          deliveryStatus: 'PENDING',
+          deliveryStatus: completed ? 'RECEIVED' : 'PENDING',
           scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : null,
           itemsTotal: t.itemsTotal,
           discountType,
@@ -154,13 +159,31 @@ export class OrdersService {
           overrideValue: t.overrideValue,
           deliveryFee,
           total: t.total,
-          paidTotal: 0,
-          balanceDue: t.total,
+          paidTotal: completed ? t.total : 0,
+          balanceDue: completed ? 0 : t.total,
           notes: dto.notes,
           items: { create: items },
         },
         include: { items: true },
       });
+
+      // lançamento passado: registra pagamento total + entrega recebida
+      if (completed) {
+        if (t.total > 0) {
+          await tx.payment.create({
+            data: {
+              orderId: order.id,
+              amount: t.total,
+              method: dto.paymentMethod ?? 'CASH',
+              paidAt: placedAt,
+            },
+          });
+        }
+        await tx.delivery.create({
+          data: { orderId: order.id, method: 'PICKUP', receivedAt: placedAt },
+        });
+      }
+
       await this.bumpCustomer(tx, dto.customerId, t.total, 1);
       return order;
     });

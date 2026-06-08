@@ -13,7 +13,12 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { DiscountType, OrderStatus } from '../generated/prisma/enums';
+import {
+  DiscountType,
+  OrderStatus,
+  PaymentMethod,
+} from '../generated/prisma/enums';
+import { IsBoolean } from 'class-validator';
 
 export class OrderItemInput {
   @IsUUID()
@@ -56,6 +61,21 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+
+  /** Data do pedido (retroativa). Default: agora. */
+  @IsOptional()
+  @IsISO8601()
+  placedAt?: string;
+
+  /** Lançamento passado: já pago em cheio + entregue (PICKUP) + PRONTO. */
+  @IsOptional()
+  @IsBoolean()
+  completed?: boolean;
+
+  /** Método do pagamento total quando completed=true. */
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
 }
 
 export class UpdateOrderDto {

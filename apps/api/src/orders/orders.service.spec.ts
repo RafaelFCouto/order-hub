@@ -274,6 +274,28 @@ describe('OrdersService', () => {
     expect(received.deliveryStatus).toBe('RECEIVED');
   });
 
+  it('lançamento retroativo: já pago e entregue', async () => {
+    const placed = '2026-01-10T12:00:00.000Z';
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodB, quantity: 2 }], // 50
+      completed: true,
+      paymentMethod: 'PIX',
+      placedAt: placed,
+    });
+    expect(order.status).toBe('READY');
+    expect(order.paymentStatus).toBe('PAID');
+    expect(order.deliveryStatus).toBe('RECEIVED');
+    expect(Number(order.paidTotal)).toBe(50);
+    expect(Number(order.balanceDue)).toBe(0);
+    expect(new Date(order.createdAt).toISOString()).toBe(placed);
+
+    const full = await service.get(USER.id, order.id);
+    expect(full.payments).toHaveLength(1);
+    expect(full.deliveries).toHaveLength(1);
+    expect(full.deliveries[0].method).toBe('PICKUP');
+  });
+
   it('bloqueia acesso de outro dono', async () => {
     const other: AuthUser = { id: 'intruso-ord', email: 'i@x.com', name: 'I' };
     await prisma.user.create({
