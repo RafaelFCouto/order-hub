@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import { moneyToMasked, parseMoney } from '../lib/format';
 import Select from '../components/Select';
+import MoneyInput from '../components/MoneyInput';
 import type { Category, Product, Store } from '../types';
 
 interface FormState {
@@ -60,7 +62,7 @@ export default function Products() {
     mutationFn: (f: FormState) => {
       const payload = {
         name: f.name,
-        price: Number(f.price),
+        price: parseMoney(f.price),
         stock: f.stock === '' ? undefined : Number(f.stock),
         categoryId: f.categoryId || undefined,
         active: f.active,
@@ -128,13 +130,10 @@ export default function Products() {
           required
           minLength={2}
         />
-        <input
-          type="number"
-          step="0.01"
-          min="0"
+        <MoneyInput
           placeholder="Preço *"
           value={form.price}
-          onChange={(e) => setForm({ ...form, price: e.target.value })}
+          onChange={(v) => setForm({ ...form, price: v })}
           required
         />
         <input
@@ -193,7 +192,7 @@ export default function Products() {
                     setForm({
                       id: p.id,
                       name: p.name,
-                      price: p.price,
+                      price: moneyToMasked(p.price),
                       stock: p.stock == null ? '' : String(p.stock),
                       categoryId: p.categoryId ?? '',
                       active: p.active,

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { brl } from '../lib/format';
+import { brl, moneyToMasked, parseMoney } from '../lib/format';
 import Select from '../components/Select';
+import MoneyInput from '../components/MoneyInput';
 import { METHOD_LABEL } from '../lib/orderLabels';
 import { maskPhone } from '../lib/whatsapp';
 import type {
@@ -94,8 +95,14 @@ export default function OrderForm() {
       })),
     );
     setDiscountType(order.discountType);
-    setDiscountValue(order.discountType === 'NONE' ? '' : order.discountValue);
-    setDeliveryFee(Number(order.deliveryFee) ? order.deliveryFee : '');
+    setDiscountValue(
+      order.discountType === 'FIXED'
+        ? moneyToMasked(order.discountValue)
+        : order.discountType === 'PERCENT'
+          ? String(Number(order.discountValue))
+          : '',
+    );
+    setDeliveryFee(moneyToMasked(order.deliveryFee));
     setIsScheduled(Boolean(order.scheduledFor));
     setScheduledFor(
       order.scheduledFor ? order.scheduledFor.slice(0, 16) : '',
@@ -108,11 +115,12 @@ export default function OrderForm() {
 
   const totals = useMemo(() => {
     const itemsTotal = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
-    const dv = Number(discountValue) || 0;
     let discount = 0;
-    if (discountType === 'FIXED') discount = Math.min(dv, itemsTotal);
-    else if (discountType === 'PERCENT') discount = (itemsTotal * dv) / 100;
-    const fee = Number(deliveryFee) || 0;
+    if (discountType === 'FIXED')
+      discount = Math.min(parseMoney(discountValue), itemsTotal);
+    else if (discountType === 'PERCENT')
+      discount = (itemsTotal * (Number(discountValue) || 0)) / 100;
+    const fee = parseMoney(deliveryFee);
     const total = itemsTotal - discount + fee;
     return { itemsTotal, discount, total };
   }, [lines, discountType, discountValue, deliveryFee]);
@@ -182,8 +190,13 @@ export default function OrderForm() {
           quantity: l.quantity,
         })),
         discountType,
-        discountValue: discountType === 'NONE' ? 0 : Number(discountValue) || 0,
-        deliveryFee: Number(deliveryFee) || 0,
+        discountValue:
+          discountType === 'NONE'
+            ? 0
+            : discountType === 'FIXED'
+              ? parseMoney(discountValue)
+              : Number(discountValue) || 0,
+        deliveryFee: parseMoney(deliveryFee),
         scheduledFor:
           isScheduled && scheduledFor
             ? new Date(scheduledFor).toISOString()
@@ -200,8 +213,13 @@ export default function OrderForm() {
           quantity: l.quantity,
         })),
         discountType,
-        discountValue: discountType === 'NONE' ? 0 : Number(discountValue) || 0,
-        deliveryFee: Number(deliveryFee) || 0,
+        discountValue:
+          discountType === 'NONE'
+            ? 0
+            : discountType === 'FIXED'
+              ? parseMoney(discountValue)
+              : Number(discountValue) || 0,
+        deliveryFee: parseMoney(deliveryFee),
         scheduledFor:
           isScheduled && scheduledFor
             ? new Date(scheduledFor).toISOString()
@@ -216,11 +234,11 @@ export default function OrderForm() {
         body: createBody,
       });
       // sinal só faz sentido em pedido não-concluído
-      if (!completed && hasDownPayment && Number(downAmount) > 0) {
+      if (!completed && hasDownPayment && parseMoney(downAmount) > 0) {
         await api(`/orders/${created.id}/payments`, {
           method: 'POST',
           body: JSON.stringify({
-            amount: Number(downAmount),
+            amount: parseMoney(downAmount),
             method: downMethod,
           }),
         });
@@ -399,30 +417,37 @@ export default function OrderForm() {
         <div className="row-form">
           <Select
             value={discountType}
-            onChange={(v) => setDiscountType(v as DiscountType)}
+            onChange={(v) => {
+              setDiscountType(v as DiscountType);
+              setDiscountValue('');
+            }}
             options={[
               { value: 'NONE', label: 'Sem desconto' },
               { value: 'FIXED', label: 'Desconto R$' },
               { value: 'PERCENT', label: 'Desconto %' },
             ]}
           />
-          {discountType !== 'NONE' && (
+          {discountType === 'FIXED' && (
+            <MoneyInput
+              placeholder="Desconto R$"
+              value={discountValue}
+              onChange={setDiscountValue}
+            />
+          )}
+          {discountType === 'PERCENT' && (
             <input
               type="number"
               min="0"
               step="0.01"
-              placeholder={discountType === 'PERCENT' ? '%' : 'R$'}
+              placeholder="%"
               value={discountValue}
               onChange={(e) => setDiscountValue(e.target.value)}
             />
           )}
-          <input
-            type="number"
-            min="0"
-            step="0.01"
+          <MoneyInput
             placeholder="Frete R$"
             value={deliveryFee}
-            onChange={(e) => setDeliveryFee(e.target.value)}
+            onChange={setDeliveryFee}
           />
         </div>
 
@@ -455,7 +480,8 @@ export default function OrderForm() {
           <div className="muted">
             Itens: {brl(totals.itemsTotal)}
             {totals.discount > 0 && ` · Desconto: −${brl(totals.discount)}`}
-            {Number(deliveryFee) > 0 && ` · Frete: ${brl(Number(deliveryFee))}`}
+            {parseMoney(deliveryFee) > 0 &&
+              ` · Frete: ${brl(parseMoney(deliveryFee))}`}
           </div>
           <strong className="order-total">Total: {brl(totals.total)}</strong>
         </div>
@@ -503,13 +529,10 @@ export default function OrderForm() {
                 </label>
                 {hasDownPayment && (
                   <div className="row-form">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
+                    <MoneyInput
                       placeholder="Valor do sinal R$"
                       value={downAmount}
-                      onChange={(e) => setDownAmount(e.target.value)}
+                      onChange={setDownAmount}
                     />
                     <Select
                       value={downMethod}

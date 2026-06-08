@@ -2,8 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { brl } from '../lib/format';
+import { brl, parseMoney } from '../lib/format';
 import { formatPhone, waLink, waLinkText } from '../lib/whatsapp';
+import MoneyInput from '../components/MoneyInput';
 import {
   DELIVERY_LABEL,
   DELIVERY_METHOD_LABEL,
@@ -60,7 +61,7 @@ export default function OrderDetail() {
     mutationFn: () =>
       api(`/orders/${id}/payments`, {
         method: 'POST',
-        body: JSON.stringify({ amount: Number(amount), method }),
+        body: JSON.stringify({ amount: parseMoney(amount), method }),
       }),
     onSuccess: () => {
       setAmount('');
@@ -83,7 +84,7 @@ export default function OrderDetail() {
           recipientName: delRecipient || undefined,
           address: delAddress || undefined,
           courierName: delCourier || undefined,
-          cost: delCost ? Number(delCost) : undefined,
+          cost: delCost ? parseMoney(delCost) : undefined,
         }),
       }),
     onSuccess: () => {
@@ -132,7 +133,7 @@ export default function OrderDetail() {
   function onAddPayment(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (Number(amount) > 0) addPayment.mutate();
+    if (parseMoney(amount) > 0) addPayment.mutate();
   }
 
   if (isLoading) return <div className="page muted">Carregando...</div>;
@@ -159,22 +160,27 @@ export default function OrderDetail() {
   const messages: { label: string; text: string; show: boolean }[] = [
     {
       label: 'Pedido confirmado',
-      text: `Olá ${nome}! Seu pedido foi confirmado 🎉\n\n${itensTxt}\n\nTotal: ${brl(order.total)}`,
-      show: true,
+      text: `Olá ${nome}! Seu pedido foi confirmado.\n\n${itensTxt}\n\nTotal: ${brl(order.total)}`,
+      show: order.status === 'PENDING',
     },
     {
       label: 'Pedido pronto',
-      text: `Olá ${nome}! Seu pedido está pronto ✅`,
-      show: true,
+      text: `Olá ${nome}! Seu pedido está pronto.`,
+      show: order.status === 'READY',
     },
     {
       label: 'Pedido enviado',
-      text: `Olá ${nome}! Seu pedido saiu para entrega 🚚`,
-      show: true,
+      text: `Olá ${nome}! Seu pedido saiu para entrega.`,
+      show: order.deliveryStatus === 'SHIPPED',
     },
     {
       label: 'Cobrança',
-      text: `Olá ${nome}! Passando para lembrar do pagamento do seu pedido. Faltam ${brl(order.balanceDue)} 🙏`,
+      text:
+        `Olá ${nome}! Passando para lembrar do pagamento do seu pedido:\n\n` +
+        `${itensTxt}\n\n` +
+        `Total: ${brl(order.total)}\n` +
+        `Pago: ${brl(order.paidTotal)}\n` +
+        `Falta: ${brl(order.balanceDue)}`,
       show: balanceOpen,
     },
   ];
@@ -225,7 +231,7 @@ export default function OrderDetail() {
       </div>
 
       {/* mensagens WhatsApp */}
-      {phone && waLink(phone) && (
+      {phone && waLink(phone) && messages.some((m) => m.show) && (
         <div className="card">
           <span className="field-label">Mensagens (WhatsApp)</span>
           <div className="msg-buttons">
@@ -296,10 +302,22 @@ export default function OrderDetail() {
           <span>Pago</span>
           <span>{brl(order.paidTotal)}</span>
         </div>
-        <div className="line-row balance">
-          <strong>Saldo devedor</strong>
-          <strong>{brl(order.balanceDue)}</strong>
-        </div>
+        {Number(order.balanceDue) < 0 ? (
+          <div className="line-row over">
+            <strong>Pago a mais (troco)</strong>
+            <strong>{brl(-Number(order.balanceDue))}</strong>
+          </div>
+        ) : Number(order.balanceDue) === 0 ? (
+          <div className="line-row paid">
+            <strong>Quitado</strong>
+            <strong>{brl(0)}</strong>
+          </div>
+        ) : (
+          <div className="line-row balance">
+            <strong>Saldo devedor</strong>
+            <strong>{brl(order.balanceDue)}</strong>
+          </div>
+        )}
       </div>
 
       {/* pagamentos */}
@@ -351,13 +369,10 @@ export default function OrderDetail() {
 
         {Number(order.balanceDue) > 0 && order.status !== 'CANCELED' && (
           <form className="row-form pay-form" onSubmit={onAddPayment}>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
+            <MoneyInput
               placeholder="Valor R$"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={setAmount}
               required
             />
             <Select
@@ -400,13 +415,10 @@ export default function OrderDetail() {
                 value={delRecipient}
                 onChange={(e) => setDelRecipient(e.target.value)}
               />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
+              <MoneyInput
                 placeholder="Custo R$"
                 value={delCost}
-                onChange={(e) => setDelCost(e.target.value)}
+                onChange={setDelCost}
               />
               <button
                 type="button"
