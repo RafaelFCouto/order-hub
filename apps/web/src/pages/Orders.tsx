@@ -11,6 +11,7 @@ import type { Order, OrderStatus, Store } from '../types';
 export default function Orders() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [tab, setTab] = useState<'active' | 'done'>('active');
   const [storeId, setStoreId] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
@@ -25,12 +26,13 @@ export default function Orders() {
 
   const params = new URLSearchParams();
   if (storeId) params.set('store_id', storeId);
-  if (status) params.set('status', status);
+  if (status && tab === 'active') params.set('status', status);
+  params.set('done', tab === 'done' ? 'true' : 'false');
   const qs = params.toString();
 
   const { data: orders, isLoading } = useQuery({
-    queryKey: ['orders', storeId, status],
-    queryFn: () => api<Order[]>(`/orders${qs ? `?${qs}` : ''}`),
+    queryKey: ['orders', tab, storeId, status],
+    queryFn: () => api<Order[]>(`/orders?${qs}`),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['orders'] });
@@ -66,6 +68,21 @@ export default function Orders() {
         </Link>
       </div>
 
+      <div className="tabs">
+        <button
+          className={`tab ${tab === 'active' ? 'active' : ''}`}
+          onClick={() => setTab('active')}
+        >
+          Ativos
+        </button>
+        <button
+          className={`tab ${tab === 'done' ? 'active' : ''}`}
+          onClick={() => setTab('done')}
+        >
+          Concluídos
+        </button>
+      </div>
+
       <div className="filters">
         <Select
           value={storeId}
@@ -76,18 +93,20 @@ export default function Orders() {
             ...(stores?.map((s) => ({ value: s.id, label: s.name })) ?? []),
           ]}
         />
-        <Select
-          value={status}
-          onChange={setStatus}
-          placeholder="Todos os status"
-          options={[
-            { value: '', label: 'Todos os status' },
-            ...(Object.keys(STATUS_LABEL) as OrderStatus[]).map((s) => ({
-              value: s,
-              label: STATUS_LABEL[s],
-            })),
-          ]}
-        />
+        {tab === 'active' && (
+          <Select
+            value={status}
+            onChange={setStatus}
+            placeholder="Todos os status"
+            options={[
+              { value: '', label: 'Todos os status' },
+              ...(Object.keys(STATUS_LABEL) as OrderStatus[]).map((s) => ({
+                value: s,
+                label: STATUS_LABEL[s],
+              })),
+            ]}
+          />
+        )}
       </div>
       <input
         placeholder="Buscar cliente (nome ou telefone)..."
@@ -98,7 +117,9 @@ export default function Orders() {
       {isLoading ? (
         <p className="muted">Carregando...</p>
       ) : !filtered.length ? (
-        <p className="muted">Nenhum pedido.</p>
+        <p className="muted">
+          {tab === 'done' ? 'Nenhum pedido concluído.' : 'Nenhum pedido ativo.'}
+        </p>
       ) : (
         <ul className="list">
           {filtered.map((o) => {
@@ -171,36 +192,38 @@ export default function Orders() {
                     ))}
                   </div>
                 </div>
-                <div className="actions">
-                  {next && o.status !== 'CANCELED' && (
-                    <button
-                      className="link"
-                      disabled={advance.isPending}
-                      onClick={() => advance.mutate({ id: o.id, to: next.to })}
-                    >
-                      {next.label}
-                    </button>
-                  )}
-                  {isEditable(o.status) && (
-                    <button
-                      className="link"
-                      onClick={() => navigate(`/orders/${o.id}/edit`)}
-                    >
-                      Editar
-                    </button>
-                  )}
-                  {o.status !== 'CANCELED' && (
-                    <button
-                      className="link danger"
-                      onClick={() => {
-                        if (confirm(`Cancelar pedido #${o.code}?`))
-                          cancel.mutate(o.id);
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                  )}
-                </div>
+                {tab === 'active' && (
+                  <div className="actions">
+                    {next && o.status !== 'CANCELED' && (
+                      <button
+                        className="link"
+                        disabled={advance.isPending}
+                        onClick={() => advance.mutate({ id: o.id, to: next.to })}
+                      >
+                        {next.label}
+                      </button>
+                    )}
+                    {isEditable(o.status) && (
+                      <button
+                        className="link"
+                        onClick={() => navigate(`/orders/${o.id}/edit`)}
+                      >
+                        Editar
+                      </button>
+                    )}
+                    {o.status !== 'CANCELED' && (
+                      <button
+                        className="link danger"
+                        onClick={() => {
+                          if (confirm(`Cancelar pedido #${o.code}?`))
+                            cancel.mutate(o.id);
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

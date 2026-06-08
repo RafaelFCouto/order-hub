@@ -10,6 +10,7 @@ interface Props {
   options: Option[];
   onChange: (value: string) => void;
   placeholder?: string;
+  searchable?: boolean;
 }
 
 /** Dropdown custom (estilizável) — substitui o <select> nativo. */
@@ -18,8 +19,10 @@ export default function Select({
   options,
   onChange,
   placeholder = 'Selecione...',
+  searchable = false,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.value === value);
 
@@ -40,6 +43,17 @@ export default function Select({
       document.removeEventListener('keydown', onEsc);
     };
   }, [open]);
+
+  // limpa a busca ao fechar
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
+  const term = query.trim().toLowerCase();
+  const visible =
+    searchable && term
+      ? options.filter((o) => o.label.toLowerCase().includes(term))
+      : options;
 
   return (
     <div className={`select ${open ? 'open' : ''}`} ref={ref}>
@@ -72,23 +86,39 @@ export default function Select({
       </button>
 
       {open && (
-        <ul className="select-menu" role="listbox">
-          {options.map((o) => (
-            <li
-              key={o.value}
-              role="option"
-              aria-selected={o.value === value}
-              className={`select-option ${o.value === value ? 'sel' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(o.value);
-                setOpen(false);
-              }}
-            >
-              {o.label}
-            </li>
-          ))}
-        </ul>
+        <div className="select-menu">
+          {searchable && (
+            <input
+              className="select-search"
+              placeholder="Buscar..."
+              value={query}
+              autoFocus
+              onChange={(e) => setQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          <ul role="listbox">
+            {visible.length === 0 ? (
+              <li className="select-empty muted">Nada encontrado</li>
+            ) : (
+              visible.map((o) => (
+                <li
+                  key={o.value}
+                  role="option"
+                  aria-selected={o.value === value}
+                  className={`select-option ${o.value === value ? 'sel' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
       )}
     </div>
   );

@@ -259,6 +259,7 @@ export default function OrderForm() {
               value={customerId}
               onChange={setCustomerId}
               placeholder="Selecione o cliente"
+              searchable
               options={(customers ?? []).map((c) => ({
                 value: c.id,
                 label: c.name,
@@ -297,6 +298,7 @@ export default function OrderForm() {
               value={pickProduct}
               onChange={setPickProduct}
               placeholder={pickStore ? 'Produto' : 'Escolha a loja'}
+              searchable
               options={(products ?? []).map((p) => ({
                 value: p.id,
                 label: `${p.name} — ${brl(p.price)}`,

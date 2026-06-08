@@ -510,9 +510,23 @@ export class OrdersService {
       storeId?: string;
       from?: string;
       to?: string;
+      done?: boolean;
     },
   ) {
     if (filters.storeId) await this.stores.assertMember(ownerId, filters.storeId);
+
+    // "concluído" = pronto + entregue + pago (regra da aba Concluídos)
+    const doneWhere = {
+      status: 'READY' as const,
+      deliveryStatus: 'RECEIVED' as const,
+      paymentStatus: { in: ['PAID', 'OVERPAID'] as PaymentStatus[] },
+    };
+    const doneFilter =
+      filters.done === true
+        ? doneWhere
+        : filters.done === false
+          ? { NOT: doneWhere }
+          : {};
 
     const scheduledFor =
       filters.from || filters.to
@@ -536,6 +550,7 @@ export class OrdersService {
           ? { items: { some: { storeId: filters.storeId, deletedAt: null } } }
           : {}),
         ...(scheduledFor ? { scheduledFor } : {}),
+        ...doneFilter,
       },
       include: {
         items: { where: { deletedAt: null } },

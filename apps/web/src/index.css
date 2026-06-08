@@ -107,15 +107,26 @@ input:focus {
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  margin: 0;
   padding: 0.3rem;
-  list-style: none;
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
+}
+.select-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.select-search {
+  width: 100%;
+  margin-bottom: 0.3rem;
+  padding: 0.5rem 0.6rem;
+}
+.select-empty {
+  padding: 0.6rem 0.7rem;
 }
 .select-option {
   padding: 0.6rem 0.7rem;
@@ -389,6 +400,24 @@ button.link.danger {
   font-weight: 600;
   font-size: 0.9rem;
   white-space: nowrap;
+}
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  background: none;
+  color: var(--muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+}
+.tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
 }
 .filters {
   display: flex;

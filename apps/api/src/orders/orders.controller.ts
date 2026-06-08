@@ -31,6 +31,7 @@ export class OrdersController {
     @Query('store_id') storeId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('done') done?: string,
   ) {
     return this.orders.list(user.id, {
       status,
@@ -40,6 +41,7 @@ export class OrdersController {
       storeId,
       from,
       to,
+      done: done === 'true' ? true : done === 'false' ? false : undefined,
     });
   }
 

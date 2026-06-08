@@ -296,6 +296,27 @@ describe('OrdersService', () => {
     expect(full.deliveries[0].method).toBe('PICKUP');
   });
 
+  it('separa concluídos (pronto+pago+entregue) na listagem', async () => {
+    const done = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodA, quantity: 1 }],
+      completed: true,
+      paymentMethod: 'PIX',
+    });
+    const active = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodA, quantity: 1 }],
+    });
+
+    const concluidos = await service.list(USER.id, { done: true });
+    expect(concluidos.find((o) => o.id === done.id)).toBeDefined();
+    expect(concluidos.find((o) => o.id === active.id)).toBeUndefined();
+
+    const ativos = await service.list(USER.id, { done: false });
+    expect(ativos.find((o) => o.id === active.id)).toBeDefined();
+    expect(ativos.find((o) => o.id === done.id)).toBeUndefined();
+  });
+
   it('bloqueia acesso de outro dono', async () => {
     const other: AuthUser = { id: 'intruso-ord', email: 'i@x.com', name: 'I' };
     await prisma.user.create({
