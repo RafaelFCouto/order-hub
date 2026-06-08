@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { brl, parseMoney } from '../lib/format';
 import { formatPhone, waLink, waLinkText } from '../lib/whatsapp';
 import MoneyInput from '../components/MoneyInput';
+import { useUi } from '../lib/ui';
 import {
   DELIVERY_LABEL,
   DELIVERY_METHOD_LABEL,
@@ -27,6 +28,7 @@ export default function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { confirm } = useUi();
 
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('PIX');
@@ -339,8 +341,14 @@ export default function OrderDetail() {
                   className="icon-btn danger"
                   aria-label="Estornar"
                   title="Estornar"
-                  onClick={() => {
-                    if (confirm(`Estornar ${brl(p.amount)}?`))
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        message: `Estornar ${brl(p.amount)}?`,
+                        confirmLabel: 'Estornar',
+                        danger: true,
+                      })
+                    )
                       removePayment.mutate(p.id);
                   }}
                 >
@@ -437,8 +445,14 @@ export default function OrderDetail() {
                   className="icon-btn danger"
                   aria-label="Remover entrega"
                   title="Remover entrega"
-                  onClick={() => {
-                    if (confirm('Remover entrega?'))
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        message: 'Remover entrega?',
+                        confirmLabel: 'Remover',
+                        danger: true,
+                      })
+                    )
                       removeDelivery.mutate(delivery.id);
                   }}
                 >
@@ -553,8 +567,15 @@ export default function OrderDetail() {
           )}
           <button
             className="link danger"
-            onClick={() => {
-              if (confirm(`Cancelar pedido #${order.code}?`)) cancel.mutate();
+            onClick={async () => {
+              if (
+                await confirm({
+                  message: `Cancelar pedido #${order.code}?`,
+                  confirmLabel: 'Cancelar pedido',
+                  danger: true,
+                })
+              )
+                cancel.mutate();
             }}
           >
             Cancelar pedido

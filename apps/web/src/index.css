@@ -335,6 +335,59 @@ button.link.danger {
   font-weight: 500;
 }
 
+/* ---- Toast ---- */
+.toast-wrap {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 200;
+  width: calc(100% - 2rem);
+  max-width: 420px;
+}
+.toast {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--muted);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-size: 0.9rem;
+  white-space: pre-line;
+  cursor: pointer;
+  animation: toast-in 0.18s ease-out;
+}
+.toast-error {
+  border-left-color: var(--danger);
+}
+.toast-success {
+  border-left-color: #16a34a;
+}
+.toast-info {
+  border-left-color: var(--primary);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.confirm-msg {
+  margin: 0;
+  white-space: pre-line;
+}
+button.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
 /* ---- Modal / popup ---- */
 .modal-overlay {
   position: fixed;
@@ -431,6 +484,26 @@ button.link.danger {
 .agenda-day {
   margin-top: 0.6rem;
 }
+.agenda-day .field-label {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+.agenda-tag {
+  display: inline-block;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  margin-right: 0.4rem;
+  letter-spacing: 0.03em;
+}
+.agenda-tag.tag-today {
+  background: var(--danger);
+}
+.agenda-tag.tag-tomorrow {
+  background: #f59e0b;
+}
 @media (min-width: 768px) {
   .cards {
     grid-template-columns: repeat(4, 1fr);
@@ -479,6 +552,9 @@ button.link.danger {
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
+}
+.clickable {
+  cursor: pointer;
 }
 .order-line {
   display: flex;

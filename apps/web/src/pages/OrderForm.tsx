@@ -7,6 +7,7 @@ import Select from '../components/Select';
 import MoneyInput from '../components/MoneyInput';
 import { METHOD_LABEL } from '../lib/orderLabels';
 import { maskPhone } from '../lib/whatsapp';
+import { useUi } from '../lib/ui';
 import type {
   Customer,
   DiscountType,
@@ -29,6 +30,7 @@ export default function OrderForm() {
   const editing = Boolean(id);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { toast } = useUi();
 
   const [customerId, setCustomerId] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
@@ -251,9 +253,10 @@ export default function OrderForm() {
       if (editing) qc.invalidateQueries({ queryKey: ['order', id] });
       const warns = saved.stockWarnings ?? [];
       if (warns.length) {
-        alert(
+        toast(
           'Estoque negativo:\n' +
-            warns.map((w) => `• ${w.name}: ${w.stock}`).join('\n'),
+            warns.map((w) => `${w.name}: ${w.stock}`).join('\n'),
+          'error',
         );
       }
       navigate(`/orders/${saved.id}`);

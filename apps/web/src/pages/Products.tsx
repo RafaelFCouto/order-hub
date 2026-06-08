@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { moneyToMasked, parseMoney } from '../lib/format';
 import Select from '../components/Select';
 import MoneyInput from '../components/MoneyInput';
+import { useUi } from '../lib/ui';
 import type { Category, Product, Store } from '../types';
 
 interface FormState {
@@ -26,6 +27,7 @@ const EMPTY: FormState = {
 
 export default function Products() {
   const qc = useQueryClient();
+  const { confirm } = useUi();
   const [storeId, setStoreId] = useState('');
   const [form, setForm] = useState<FormState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
@@ -203,8 +205,15 @@ export default function Products() {
                 </button>
                 <button
                   className="link danger"
-                  onClick={() => {
-                    if (confirm(`Excluir ${p.name}?`)) del.mutate(p.id);
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        message: `Excluir ${p.name}?`,
+                        confirmLabel: 'Excluir',
+                        danger: true,
+                      })
+                    )
+                      del.mutate(p.id);
                   }}
                 >
                   Excluir

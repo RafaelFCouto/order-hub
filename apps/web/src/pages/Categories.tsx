@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import Select from '../components/Select';
+import { useUi } from '../lib/ui';
 import type { Category, Store } from '../types';
 
 export default function Categories() {
   const qc = useQueryClient();
+  const { confirm } = useUi();
   const [storeId, setStoreId] = useState('');
   const [name, setName] = useState('');
   const [showDeleted, setShowDeleted] = useState(false);
@@ -192,11 +194,13 @@ export default function Categories() {
                       </button>
                       <button
                         className="link danger"
-                        onClick={() => {
+                        onClick={async () => {
                           if (
-                            confirm(
-                              `Excluir "${c.name}"? Produtos vinculados ficam sem categoria.`,
-                            )
+                            await confirm({
+                              message: `Excluir "${c.name}"? Produtos vinculados ficam sem categoria.`,
+                              confirmLabel: 'Excluir',
+                              danger: true,
+                            })
                           ) {
                             remove.mutate(c.id);
                           }
