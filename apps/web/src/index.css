@@ -285,6 +285,10 @@ label,
   border-radius: 999px;
   background: var(--border);
 }
+.list-item strong + .badge,
+.list-item .badge + .badge {
+  margin-left: 0.35rem;
+}
 .badge-owner {
   background: #dbeafe;
   color: #1e40af;
@@ -873,6 +877,23 @@ textarea:focus {
   }
   .row-form input {
     flex: 1;
+  }
+  /* form de produtos: muitos campos -> deixa quebrar em várias linhas */
+  .product-form {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .product-form > input,
+  .product-form > .select {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+  }
+  .product-form > .toggle {
+    flex: 0 0 auto;
+    align-self: center;
+  }
+  .product-form > button {
+    flex: 0 0 auto;
   }
   .bottomnav {
     position: static;
