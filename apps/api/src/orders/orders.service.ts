@@ -53,6 +53,17 @@ const DMETHOD_PT: Record<string, string> = {
   OTHER: 'Outro',
 };
 
+interface BuiltOption {
+  productId: string;
+  productName: string;
+  quantity: number;
+}
+/** Subconjunto p/ expandir estoque (itens carregados ou recém-construídos). */
+type LoadedItem = {
+  productId: string;
+  quantity: number;
+  options?: { productId: string; quantity: number }[];
+};
 interface BuiltItem {
   productId: string;
   storeId: string;
@@ -60,6 +71,7 @@ interface BuiltItem {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  options: BuiltOption[];
 }
 
 interface Totals {
@@ -96,6 +108,41 @@ export class OrdersService {
       }
       await this.stores.assertMember(ownerId, product.storeId);
       const unitPrice = Number(product.price);
+
+      // combo: valida e congela os sabores escolhidos
+      let options: BuiltOption[] = [];
+      if (product.comboSize != null) {
+        const opts = item.options ?? [];
+        const sum = opts.reduce((s, o) => s + o.quantity, 0);
+        if (sum !== product.comboSize) {
+          throw new BadRequestException(
+            `Combo "${product.name}" exige ${product.comboSize} sabor(es); recebido ${sum}`,
+          );
+        }
+        options = await Promise.all(
+          opts.map(async (o) => {
+            const flavor = await this.prisma.product.findFirst({
+              where: {
+                id: o.productId,
+                deletedAt: null,
+                storeId: product.storeId,
+                categoryId: product.comboCategoryId,
+              },
+            });
+            if (!flavor) {
+              throw new BadRequestException(
+                `Sabor ${o.productId} inválido para o combo "${product.name}"`,
+              );
+            }
+            return {
+              productId: flavor.id,
+              productName: flavor.name,
+              quantity: o.quantity,
+            };
+          }),
+        );
+      }
+
       built.push({
         productId: product.id,
         storeId: product.storeId,
@@ -103,9 +150,22 @@ export class OrdersService {
         unitPrice,
         quantity: item.quantity,
         lineTotal: money(unitPrice * item.quantity),
+        options,
       });
     }
     return built;
+  }
+
+  /** Lista plana p/ estoque: a caixa + cada sabor (qty × qtd de caixas). */
+  private stockList(items: BuiltItem[] | LoadedItem[]) {
+    const moves: { productId: string; quantity: number }[] = [];
+    for (const it of items) {
+      moves.push({ productId: it.productId, quantity: it.quantity });
+      for (const o of it.options ?? []) {
+        moves.push({ productId: o.productId, quantity: o.quantity * it.quantity });
+      }
+    }
+    return moves;
   }
 
   /** Cálculo puro dos totais (regra de desconto de loja). */
@@ -144,7 +204,7 @@ export class OrdersService {
   private async loadOwned(ownerId: string, id: string) {
     const order = await this.prisma.order.findFirst({
       where: { id, ownerId, deletedAt: null },
-      include: { items: { where: { deletedAt: null } } },
+      include: { items: { where: { deletedAt: null }, include: { options: true } } },
     });
     if (!order) throw new NotFoundException('Pedido não encontrado');
     return order;
@@ -187,7 +247,17 @@ export class OrdersService {
           paidTotal: completed ? t.total : 0,
           balanceDue: completed ? 0 : t.total,
           notes: dto.notes,
-          items: { create: items },
+          items: {
+            create: items.map((i) => ({
+              productId: i.productId,
+              storeId: i.storeId,
+              productName: i.productName,
+              unitPrice: i.unitPrice,
+              quantity: i.quantity,
+              lineTotal: i.lineTotal,
+              options: i.options.length ? { create: i.options } : undefined,
+            })),
+          },
         },
         include: { items: true },
       });
@@ -245,14 +315,10 @@ export class OrdersService {
         );
       }
 
-      // baixa de estoque (não bloqueia)
+      // baixa de estoque (caixa + sabores; não bloqueia)
       const warnings = await this.stock.sale(
         tx,
-        order.items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          orderItemId: i.id,
-        })),
+        this.stockList(items),
         ownerId,
       );
 
@@ -281,6 +347,11 @@ export class OrdersService {
           unitPrice: Number(i.unitPrice),
           quantity: i.quantity,
           lineTotal: Number(i.lineTotal),
+          options: i.options.map((o) => ({
+            productId: o.productId,
+            productName: o.productName,
+            quantity: o.quantity,
+          })),
         }));
 
     const discountType = dto.discountType ?? (order.discountType as DiscountType);
@@ -296,36 +367,29 @@ export class OrdersService {
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {
-        // devolve estoque dos itens antigos
-        await this.stock.restock(
-          tx,
-          order.items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            orderItemId: i.id,
-          })),
-          ownerId,
-        );
+        // devolve estoque dos itens antigos (caixa + sabores)
+        await this.stock.restock(tx, this.stockList(order.items), ownerId);
         await tx.orderItem.updateMany({
           where: { orderId: id, deletedAt: null },
           data: { deletedAt: new Date() },
         });
-        await tx.orderItem.createMany({
-          data: items.map((i) => ({ ...i, orderId: id })),
-        });
+        // recria itens (com sabores, se combo)
+        for (const i of items) {
+          await tx.orderItem.create({
+            data: {
+              orderId: id,
+              productId: i.productId,
+              storeId: i.storeId,
+              productName: i.productName,
+              unitPrice: i.unitPrice,
+              quantity: i.quantity,
+              lineTotal: i.lineTotal,
+              options: i.options.length ? { create: i.options } : undefined,
+            },
+          });
+        }
         // baixa estoque dos itens novos
-        const recreated = await tx.orderItem.findMany({
-          where: { orderId: id, deletedAt: null },
-        });
-        await this.stock.sale(
-          tx,
-          recreated.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            orderItemId: i.id,
-          })),
-          ownerId,
-        );
+        await this.stock.sale(tx, this.stockList(items), ownerId);
       }
       const updated = await tx.order.update({
         where: { id },
@@ -398,16 +462,8 @@ export class OrdersService {
         where: { id },
         data: { deletedAt: new Date(), status: 'CANCELED' },
       });
-      // devolve estoque dos itens
-      await this.stock.restock(
-        tx,
-        order.items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          orderItemId: i.id,
-        })),
-        ownerId,
-      );
+      // devolve estoque dos itens (caixa + sabores)
+      await this.stock.restock(tx, this.stockList(order.items), ownerId);
       await this.bumpCustomer(tx, order.customerId, -Number(order.total), -1);
       await this.logEvent(tx, id, 'CANCELED', 'Pedido cancelado', ownerId);
     });
@@ -730,7 +786,7 @@ export class OrdersService {
         ...doneFilter,
       },
       include: {
-        items: { where: { deletedAt: null } },
+        items: { where: { deletedAt: null }, include: { options: true } },
         customer: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -741,7 +797,7 @@ export class OrdersService {
     const order = await this.prisma.order.findFirst({
       where: { id, ownerId, deletedAt: null },
       include: {
-        items: { where: { deletedAt: null } },
+        items: { where: { deletedAt: null }, include: { options: true } },
         payments: { where: { deletedAt: null }, orderBy: { paidAt: 'desc' } },
         deliveries: { where: { deletedAt: null } },
         customer: true,

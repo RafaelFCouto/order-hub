@@ -7,12 +7,6 @@ import { formatPhone, waLink } from '../lib/whatsapp';
 import Select from '../components/Select';
 import type { DashboardSummary, Order, Store } from '../types';
 
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
 export default function Home() {
   const [storeId, setStoreId] = useState('');
 
@@ -29,18 +23,39 @@ export default function Home() {
       ),
   });
 
-  // agenda: próximas retiradas (pedidos agendados a partir de hoje)
-  const { data: orders } = useQuery({
+  // agenda: agendados ativos (inclui atrasados)
+  const { data: active } = useQuery({
     queryKey: ['orders', 'agenda', storeId],
     queryFn: () =>
       api<Order[]>(
-        `/orders?done=false&from=${encodeURIComponent(startOfToday())}${
+        `/orders?done=false${storeId ? `&store_id=${storeId}` : ''}`,
+      ),
+  });
+  // + concluídos de hoje (pra não sumirem da agenda, só marcar entregue)
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const { data: doneToday } = useQuery({
+    queryKey: ['orders', 'agenda-done', storeId],
+    queryFn: () =>
+      api<Order[]>(
+        `/orders?done=true&from=${encodeURIComponent(
+          dayStart.toISOString(),
+        )}&to=${encodeURIComponent(dayEnd.toISOString())}${
           storeId ? `&store_id=${storeId}` : ''
         }`,
       ),
   });
 
-  const agenda = (orders ?? [])
+  const now = new Date();
+  const isLate = (o: Order) =>
+    o.scheduledFor != null &&
+    new Date(o.scheduledFor) < now &&
+    o.status !== 'READY' &&
+    o.deliveryStatus !== 'RECEIVED';
+
+  const agenda = [...(active ?? []), ...(doneToday ?? [])]
     .filter((o) => o.scheduledFor)
     .sort((a, b) => a.scheduledFor!.localeCompare(b.scheduledFor!));
 
@@ -50,6 +65,13 @@ export default function Home() {
     (acc[day] ??= []).push(o);
     return acc;
   }, {});
+
+  const todayStr = new Date().toLocaleDateString('pt-BR');
+  const tmrw = new Date();
+  tmrw.setDate(tmrw.getDate() + 1);
+  const tomorrowStr = tmrw.toLocaleDateString('pt-BR');
+  const dayLabel = (day: string) =>
+    day === todayStr ? 'HOJE' : day === tomorrowStr ? 'AMANHÃ' : null;
 
   return (
     <div className="page">
@@ -107,7 +129,18 @@ export default function Home() {
       ) : (
         Object.entries(byDay).map(([day, list]) => (
           <div key={day} className="agenda-day">
-            <span className="field-label">{day}</span>
+            <span className="field-label">
+              {dayLabel(day) && (
+                <strong
+                  className={`agenda-tag ${
+                    dayLabel(day) === 'HOJE' ? 'tag-today' : 'tag-tomorrow'
+                  }`}
+                >
+                  {dayLabel(day)}
+                </strong>
+              )}
+              {day} · {list.length} pedido{list.length > 1 ? 's' : ''}
+            </span>
             <ul className="list">
               {list.map((o) => (
                 <li key={o.id} className="card list-item">
@@ -115,6 +148,13 @@ export default function Home() {
                     <Link className="order-link" to={`/orders/${o.id}`}>
                       <strong>#{o.code}</strong> {o.customer?.name ?? 'Cliente'}
                     </Link>
+                    {o.deliveryStatus === 'RECEIVED' ? (
+                      <span className="badge status-ready">entregue</span>
+                    ) : (
+                      isLate(o) && (
+                        <span className="badge status-late">atrasado</span>
+                      )
+                    )}
                     {o.customer?.phone && waLink(o.customer.phone) && (
                       <>
                         <span className="muted">-</span>

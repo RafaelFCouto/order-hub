@@ -5,6 +5,7 @@ export async function resetDb(prisma: PrismaClient): Promise<void> {
   await prisma.productHistory.deleteMany();
   await prisma.stockMovement.deleteMany();
   await prisma.orderEvent.deleteMany();
+  await prisma.orderItemOption.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.delivery.deleteMany();

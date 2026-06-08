@@ -40,6 +40,8 @@ export interface Product {
   price: string;
   stock: number | null;
   active: boolean;
+  comboSize: number | null;
+  comboCategoryId: string | null;
 }
 
 export interface Customer {
@@ -107,6 +109,13 @@ export interface Payment {
   notes: string | null;
 }
 
+export interface OrderItemOption {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+}
+
 export interface OrderItem {
   id: string;
   productId: string;
@@ -115,6 +124,7 @@ export interface OrderItem {
   unitPrice: string;
   quantity: number;
   lineTotal: string;
+  options?: OrderItemOption[];
 }
 
 export interface Order {

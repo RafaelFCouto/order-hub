@@ -112,6 +112,8 @@ export class ProductsService {
         price: dto.price,
         stock: dto.stock,
         active: dto.active ?? true,
+        comboSize: dto.comboSize,
+        comboCategoryId: dto.comboCategoryId,
       },
     });
   }

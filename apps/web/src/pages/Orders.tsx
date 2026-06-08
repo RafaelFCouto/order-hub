@@ -6,11 +6,13 @@ import { brl } from '../lib/format';
 import { formatPhone, waLink } from '../lib/whatsapp';
 import { NEXT_STATUS, PAYMENT_LABEL, STATUS_LABEL, isEditable } from '../lib/orderLabels';
 import Select from '../components/Select';
+import { useUi } from '../lib/ui';
 import type { Order, OrderStatus, Store } from '../types';
 
 export default function Orders() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const { confirm } = useUi();
   const [tab, setTab] = useState<'active' | 'done'>('active');
   const [storeId, setStoreId] = useState('');
   const [status, setStatus] = useState('');
@@ -133,12 +135,16 @@ export default function Orders() {
               parts.slice(0, 2).join(', ') +
               (parts.length > 2 ? ` +${parts.length - 2}` : '');
             return (
-              <li key={o.id} className="card order-item">
+              <li
+                key={o.id}
+                className="card order-item clickable"
+                onClick={() => navigate(`/orders/${o.id}`)}
+              >
                 <div className="order-main">
-                  <Link className="order-line" to={`/orders/${o.id}`}>
+                  <div className="order-line">
                     <strong>#{o.code}</strong>
                     <span className="muted">{brl(o.total)}</span>
-                  </Link>
+                  </div>
                   {resumo && <div className="muted small order-summary">{resumo}</div>}
 
                   <div className="customer-inline">
@@ -203,7 +209,10 @@ export default function Orders() {
                       <button
                         className="link"
                         disabled={advance.isPending}
-                        onClick={() => advance.mutate({ id: o.id, to: next.to })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          advance.mutate({ id: o.id, to: next.to });
+                        }}
                       >
                         {next.label}
                       </button>
@@ -211,7 +220,10 @@ export default function Orders() {
                     {isEditable(o.status) && (
                       <button
                         className="link"
-                        onClick={() => navigate(`/orders/${o.id}/edit`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/orders/${o.id}/edit`);
+                        }}
                       >
                         Editar
                       </button>
@@ -219,8 +231,15 @@ export default function Orders() {
                     {o.status !== 'CANCELED' && (
                       <button
                         className="link danger"
-                        onClick={() => {
-                          if (confirm(`Cancelar pedido #${o.code}?`))
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (
+                            await confirm({
+                              message: `Cancelar pedido #${o.code}?`,
+                              confirmLabel: 'Cancelar pedido',
+                              danger: true,
+                            })
+                          )
                             cancel.mutate(o.id);
                         }}
                       >

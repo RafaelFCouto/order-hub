@@ -7,6 +7,7 @@ import Select from '../components/Select';
 import MoneyInput from '../components/MoneyInput';
 import { METHOD_LABEL } from '../lib/orderLabels';
 import { maskPhone } from '../lib/whatsapp';
+import { useUi } from '../lib/ui';
 import type {
   Customer,
   DiscountType,
@@ -16,12 +17,18 @@ import type {
   Store,
 } from '../types';
 
+interface LineOption {
+  productId: string;
+  productName: string;
+  quantity: number;
+}
 interface Line {
   productId: string;
   productName: string;
   storeId: string;
   unitPrice: number;
   quantity: number;
+  options?: LineOption[];
 }
 
 export default function OrderForm() {
@@ -29,6 +36,7 @@ export default function OrderForm() {
   const editing = Boolean(id);
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { toast } = useUi();
 
   const [customerId, setCustomerId] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
@@ -55,6 +63,10 @@ export default function OrderForm() {
   const [pickProduct, setPickProduct] = useState('');
   const [pickQty, setPickQty] = useState('1');
 
+  // seletor de sabores (combo)
+  const [comboBox, setComboBox] = useState<Product | null>(null);
+  const [flavorQty, setFlavorQty] = useState<Record<string, number>>({});
+
   // cadastro rápido de cliente
   const [newCustomer, setNewCustomer] = useState(false);
   const [ncName, setNcName] = useState('');
@@ -74,6 +86,15 @@ export default function OrderForm() {
     queryFn: () => api<Product[]>(`/products?store_id=${pickStore}&active=true`),
     enabled: Boolean(pickStore),
   });
+  // sabores do combo selecionado
+  const { data: flavors } = useQuery({
+    queryKey: ['products', comboBox?.storeId, comboBox?.comboCategoryId],
+    queryFn: () =>
+      api<Product[]>(
+        `/products?store_id=${comboBox!.storeId}&category_id=${comboBox!.comboCategoryId}&active=true`,
+      ),
+    enabled: Boolean(comboBox?.comboCategoryId),
+  });
 
   // carrega pedido em edição
   const { data: order } = useQuery({
@@ -92,6 +113,11 @@ export default function OrderForm() {
         storeId: i.storeId,
         unitPrice: Number(i.unitPrice),
         quantity: i.quantity,
+        options: i.options?.map((o) => ({
+          productId: o.productId,
+          productName: o.productName,
+          quantity: o.quantity,
+        })),
       })),
     );
     setDiscountType(order.discountType);
@@ -125,15 +151,23 @@ export default function OrderForm() {
     return { itemsTotal, discount, total };
   }, [lines, discountType, discountValue, deliveryFee]);
 
+  const flavorSum = Object.values(flavorQty).reduce((s, q) => s + q, 0);
+
   function addLine() {
     const p = products?.find((x) => x.id === pickProduct);
     const qty = Number(pickQty);
     if (!p || qty < 1) return;
+    if (p.comboSize != null) {
+      // combo: abre seletor de sabores
+      setComboBox(p);
+      setFlavorQty({});
+      return;
+    }
     setLines((prev) => {
-      const existing = prev.find((l) => l.productId === p.id);
-      if (existing) {
-        return prev.map((l) =>
-          l.productId === p.id ? { ...l, quantity: l.quantity + qty } : l,
+      const i = prev.findIndex((l) => l.productId === p.id && !l.options);
+      if (i >= 0) {
+        return prev.map((l, idx) =>
+          idx === i ? { ...l, quantity: l.quantity + qty } : l,
         );
       }
       return [
@@ -151,14 +185,38 @@ export default function OrderForm() {
     setPickQty('1');
   }
 
-  const removeLine = (productId: string) =>
-    setLines((prev) => prev.filter((l) => l.productId !== productId));
+  function confirmCombo() {
+    if (!comboBox || flavorSum !== comboBox.comboSize) return;
+    const options: LineOption[] = Object.entries(flavorQty)
+      .filter(([, q]) => q > 0)
+      .map(([pid, q]) => ({
+        productId: pid,
+        productName: flavors?.find((f) => f.id === pid)?.name ?? '',
+        quantity: q,
+      }));
+    setLines((prev) => [
+      ...prev,
+      {
+        productId: comboBox.id,
+        productName: comboBox.name,
+        storeId: comboBox.storeId,
+        unitPrice: Number(comboBox.price),
+        quantity: Number(pickQty) || 1,
+        options,
+      },
+    ]);
+    setComboBox(null);
+    setFlavorQty({});
+    setPickProduct('');
+    setPickQty('1');
+  }
 
-  const setQty = (productId: string, qty: number) =>
+  const removeLine = (idx: number) =>
+    setLines((prev) => prev.filter((_, i) => i !== idx));
+
+  const setQty = (idx: number, qty: number) =>
     setLines((prev) =>
-      prev.map((l) =>
-        l.productId === productId ? { ...l, quantity: Math.max(1, qty) } : l,
-      ),
+      prev.map((l, i) => (i === idx ? { ...l, quantity: Math.max(1, qty) } : l)),
     );
 
   const createCustomer = useMutation({
@@ -188,6 +246,10 @@ export default function OrderForm() {
         items: lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
+          options: l.options?.map((o) => ({
+            productId: o.productId,
+            quantity: o.quantity,
+          })),
         })),
         discountType,
         discountValue:
@@ -211,6 +273,10 @@ export default function OrderForm() {
         items: lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
+          options: l.options?.map((o) => ({
+            productId: o.productId,
+            quantity: o.quantity,
+          })),
         })),
         discountType,
         discountValue:
@@ -251,9 +317,10 @@ export default function OrderForm() {
       if (editing) qc.invalidateQueries({ queryKey: ['order', id] });
       const warns = saved.stockWarnings ?? [];
       if (warns.length) {
-        alert(
+        toast(
           'Estoque negativo:\n' +
-            warns.map((w) => `• ${w.name}: ${w.stock}`).join('\n'),
+            warns.map((w) => `${w.name}: ${w.stock}`).join('\n'),
+          'error',
         );
       }
       navigate(`/orders/${saved.id}`);
@@ -345,8 +412,8 @@ export default function OrderForm() {
 
         {lines.length > 0 && (
           <ul className="list">
-            {lines.map((l) => (
-              <li key={l.productId} className="card list-item">
+            {lines.map((l, idx) => (
+              <li key={idx} className="card list-item">
                 <div className="line-info">
                   <strong>{l.productName}</strong>
                   <div>
@@ -354,6 +421,13 @@ export default function OrderForm() {
                       {storeName(l.storeId)}
                     </span>
                   </div>
+                  {l.options && l.options.length > 0 && (
+                    <div className="muted small">
+                      {l.options
+                        .map((o) => `${o.quantity}x ${o.productName}`)
+                        .join(', ')}
+                    </div>
+                  )}
                   <div className="muted small">
                     {brl(l.unitPrice)} cada = {brl(l.unitPrice * l.quantity)}
                   </div>
@@ -362,7 +436,7 @@ export default function OrderForm() {
                   <div className="qty-stepper">
                     <button
                       type="button"
-                      onClick={() => setQty(l.productId, l.quantity - 1)}
+                      onClick={() => setQty(idx, l.quantity - 1)}
                       disabled={l.quantity <= 1}
                       aria-label="Diminuir"
                     >
@@ -373,12 +447,12 @@ export default function OrderForm() {
                       min="1"
                       value={l.quantity}
                       onChange={(e) =>
-                        setQty(l.productId, Number(e.target.value) || 1)
+                        setQty(idx, Number(e.target.value) || 1)
                       }
                     />
                     <button
                       type="button"
-                      onClick={() => setQty(l.productId, l.quantity + 1)}
+                      onClick={() => setQty(idx, l.quantity + 1)}
                       aria-label="Aumentar"
                     >
                       +
@@ -387,7 +461,7 @@ export default function OrderForm() {
                   <button
                     type="button"
                     className="icon-btn danger"
-                    onClick={() => removeLine(l.productId)}
+                    onClick={() => removeLine(idx)}
                     aria-label="Remover item"
                     title="Remover"
                   >
@@ -608,6 +682,71 @@ export default function OrderForm() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {comboBox && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setComboBox(null);
+          }}
+        >
+          <div className="modal">
+            <h3>{comboBox.name}</h3>
+            <p className="muted small">
+              Escolha {comboBox.comboSize} sabor(es) — {flavorSum}/
+              {comboBox.comboSize}
+            </p>
+            <ul className="list-plain">
+              {(flavors ?? []).map((f) => {
+                const q = flavorQty[f.id] ?? 0;
+                const atMax = flavorSum >= (comboBox.comboSize ?? 0);
+                return (
+                  <li key={f.id} className="line-row">
+                    <span>{f.name}</span>
+                    <div className="qty-stepper">
+                      <button
+                        type="button"
+                        disabled={q <= 0}
+                        onClick={() =>
+                          setFlavorQty((m) => ({ ...m, [f.id]: q - 1 }))
+                        }
+                      >
+                        −
+                      </button>
+                      <span>{q}</span>
+                      <button
+                        type="button"
+                        disabled={atMax}
+                        onClick={() =>
+                          setFlavorQty((m) => ({ ...m, [f.id]: q + 1 }))
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setComboBox(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={flavorSum !== comboBox.comboSize}
+                onClick={confirmCombo}
+              >
+                Adicionar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

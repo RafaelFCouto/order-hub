@@ -167,8 +167,9 @@ model ProductCategory {
   deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
   deletedUserId String?   @map("deleted_user_id") @db.Uuid
 
-  store    Store     @relation(fields: [storeId], references: [id])
-  products Product[]
+  store       Store     @relation(fields: [storeId], references: [id])
+  products    Product[]
+  comboBoxes  Product[] @relation("ComboCategory")
 
   @@map("product_category")
 }
@@ -182,15 +183,18 @@ model Product {
   price       Decimal   @db.Decimal(10, 2)
   stock       Int? // qtd atual (cache; null = não controla). Fonte da verdade: StockMovement
   active      Boolean   @default(true)
+  comboSize      Int?    @map("combo_size") // null = produto normal; N = combo de N sabores
+  comboCategoryId String? @map("combo_category_id") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  store      Store            @relation(fields: [storeId], references: [id])
-  category   ProductCategory? @relation(fields: [categoryId], references: [id])
-  orderItems OrderItem[]
-  stockMoves StockMovement[]
-  history    ProductHistory[]
+  store         Store            @relation(fields: [storeId], references: [id])
+  category      ProductCategory? @relation(fields: [categoryId], references: [id])
+  comboCategory ProductCategory? @relation("ComboCategory", fields: [comboCategoryId], references: [id])
+  orderItems    OrderItem[]
+  stockMoves    StockMovement[]
+  history       ProductHistory[]
 
   @@index([storeId])
   @@map("product")
@@ -263,15 +267,31 @@ model OrderItem {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
 
-  order      Order            @relation(fields: [orderId], references: [id])
-  product    Product          @relation(fields: [productId], references: [id])
-  store      Store            @relation(fields: [storeId], references: [id])
+  order      Order             @relation(fields: [orderId], references: [id])
+  product    Product           @relation(fields: [productId], references: [id])
+  store      Store             @relation(fields: [storeId], references: [id])
   stockMoves StockMovement[]
   history    ProductHistory[]
+  options    OrderItemOption[]
 
   @@index([orderId])
   @@index([storeId])
   @@map("order_item")
+}
+
+/// Sabores escolhidos de um item combo (ex: cookies da caixa). Congela nome.
+model OrderItemOption {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderItemId String   @map("order_item_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  productName String   @map("product_name")
+  quantity    Int
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@index([orderItemId])
+  @@map("order_item_option")
 }
 
 model Payment {

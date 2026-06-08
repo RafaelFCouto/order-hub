@@ -20,6 +20,15 @@ import {
 } from '../generated/prisma/enums';
 import { IsBoolean } from 'class-validator';
 
+export class OrderItemOptionInput {
+  @IsUUID()
+  productId!: string;
+
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+}
+
 export class OrderItemInput {
   @IsUUID()
   productId!: string;
@@ -27,6 +36,13 @@ export class OrderItemInput {
   @IsInt()
   @Min(1)
   quantity!: number;
+
+  /** Sabores escolhidos (só p/ produto combo). */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemOptionInput)
+  options?: OrderItemOptionInput[];
 }
 
 export class CreateOrderDto {
