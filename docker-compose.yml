@@ -20,13 +20,15 @@ services:
   api:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: apps/api/Dockerfile.dev
     container_name: orderhub-api
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-orderhub}:${POSTGRES_PASSWORD:-orderhub}@db:5432/${POSTGRES_DB:-orderhub}?schema=public
       PORT: 3000
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
     ports:
       - "3000:3000"
     depends_on:
@@ -39,6 +41,8 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     container_name: orderhub-web
     restart: unless-stopped
     ports:

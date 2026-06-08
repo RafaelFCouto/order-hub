@@ -13,6 +13,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "migrate:prod": "node scripts/migrate-prod.mjs",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test:db": "node scripts/gen-test-schema.mjs && prisma generate --config prisma.config.test.ts && prisma db push --config prisma.config.test.ts",
     "pretest": "pnpm test:db",
