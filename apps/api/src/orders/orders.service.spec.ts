@@ -4,6 +4,7 @@ import { resetDb } from '../test-utils/reset';
 import { OrdersService } from './orders.service';
 import { StoresService } from '../stores/stores.service';
 import { CustomersService } from '../customers/customers.service';
+import { StockService } from '../stock/stock.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.guard';
 
@@ -11,7 +12,8 @@ const prisma = createTestPrisma();
 const px = prisma as unknown as PrismaService;
 const stores = new StoresService(px);
 const customers = new CustomersService(px);
-const service = new OrdersService(px, stores, customers);
+const stock = new StockService();
+const service = new OrdersService(px, stores, customers, stock);
 
 const USER: AuthUser = { id: 'owner-ord-1', email: 'o@x.com', name: 'O' };
 
@@ -315,6 +317,66 @@ describe('OrdersService', () => {
     const ativos = await service.list(USER.id, { done: false });
     expect(ativos.find((o) => o.id === active.id)).toBeDefined();
     expect(ativos.find((o) => o.id === done.id)).toBeUndefined();
+  });
+
+  it('baixa estoque na venda e devolve no cancelamento', async () => {
+    const p = await prisma.product.create({
+      data: { storeId: storeA, name: 'ComEstoque', price: 10, stock: 5 },
+    });
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: p.id, quantity: 2 }],
+    });
+    let prod = await prisma.product.findUnique({ where: { id: p.id } });
+    expect(prod!.stock).toBe(3);
+    const movs = await prisma.stockMovement.findMany({
+      where: { productId: p.id },
+    });
+    expect(movs).toHaveLength(1);
+
+    await service.remove(USER.id, order.id);
+    prod = await prisma.product.findUnique({ where: { id: p.id } });
+    expect(prod!.stock).toBe(5);
+  });
+
+  it('venda além do estoque fica negativa e avisa', async () => {
+    const p = await prisma.product.create({
+      data: { storeId: storeA, name: 'Pouco', price: 10, stock: 1 },
+    });
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: p.id, quantity: 3 }],
+    });
+    expect(
+      (order as { stockWarnings?: unknown[] }).stockWarnings,
+    ).toHaveLength(1);
+    const prod = await prisma.product.findUnique({ where: { id: p.id } });
+    expect(prod!.stock).toBe(-2);
+  });
+
+  it('produto sem controle de estoque (null) não mexe', async () => {
+    const before = await prisma.product.findUnique({ where: { id: prodA } });
+    await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodA, quantity: 5 }],
+    });
+    const after = await prisma.product.findUnique({ where: { id: prodA } });
+    expect(after!.stock).toBe(before!.stock); // segue null
+  });
+
+  it('editar itens reajusta o estoque', async () => {
+    const p = await prisma.product.create({
+      data: { storeId: storeA, name: 'EditEstoque', price: 10, stock: 10 },
+    });
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: p.id, quantity: 2 }], // -> 8
+    });
+    await service.update(USER.id, order.id, {
+      items: [{ productId: p.id, quantity: 5 }], // devolve 2 (10), baixa 5 (5)
+    });
+    const prod = await prisma.product.findUnique({ where: { id: p.id } });
+    expect(prod!.stock).toBe(5);
   });
 
   it('bloqueia acesso de outro dono', async () => {

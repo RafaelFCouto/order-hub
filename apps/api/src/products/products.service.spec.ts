@@ -3,13 +3,15 @@ import { createTestPrisma } from '../test-utils/prisma-test';
 import { resetDb } from '../test-utils/reset';
 import { ProductsService } from './products.service';
 import { StoresService } from '../stores/stores.service';
+import { StockService } from '../stock/stock.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuthUser } from '../auth/auth.guard';
 
 const prisma = createTestPrisma();
 const px = prisma as unknown as PrismaService;
 const stores = new StoresService(px);
-const service = new ProductsService(px, stores);
+const stock = new StockService();
+const service = new ProductsService(px, stores, stock);
 
 const USER: AuthUser = { id: 'owner-prod-1', email: 'p@x.com', name: 'P' };
 let storeId: string;
@@ -127,5 +129,23 @@ describe('ProductsService', () => {
       create: { id: other.id, email: other.email, name: other.name },
     });
     await expect(service.list(other.id, storeId)).rejects.toThrow();
+  });
+
+  it('audita mudança de preço e ajuste de estoque', async () => {
+    const prod = await service.create(USER.id, {
+      storeId,
+      name: 'Auditado',
+      price: 10,
+      stock: 5,
+    });
+    await service.update(USER.id, prod.id, { price: 12, stock: 8 });
+
+    const hist = await prisma.productHistory.findMany({
+      where: { productId: prod.id },
+    });
+    expect(hist.find((h) => h.eventType === 'PRICE_CHANGE')).toBeDefined();
+    const adj = hist.find((h) => h.eventType === 'STOCK_ADJUST');
+    expect(adj).toBeDefined();
+    expect(adj!.qtyChange).toBe(3);
   });
 });

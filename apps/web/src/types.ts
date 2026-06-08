@@ -117,4 +117,5 @@ export interface Order {
   payments?: Payment[];
   deliveries?: Delivery[];
   owner?: { id: string; name: string; email: string };
+  stockWarnings?: { name: string; stock: number }[];
 }

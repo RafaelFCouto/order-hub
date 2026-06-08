@@ -174,6 +174,13 @@ export default function Products() {
               <div>
                 <strong>{p.name}</strong>
                 {!p.active && <span className="badge badge-staff"> inativo</span>}
+                {p.stock != null && p.stock <= 0 && (
+                  <span
+                    className={`badge ${p.stock < 0 ? 'status-late' : 'status-pending'}`}
+                  >
+                    {p.stock < 0 ? 'estoque negativo' : 'sem estoque'}
+                  </span>
+                )}
                 <div className="muted small">
                   R$ {p.price}
                   {p.stock != null && ` · estoque: ${p.stock}`}

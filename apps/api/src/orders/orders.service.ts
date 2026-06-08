@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { StoresService } from '../stores/stores.service';
 import { CustomersService } from '../customers/customers.service';
+import { StockService } from '../stock/stock.service';
 import {
   DiscountType,
   OrderStatus,
@@ -52,6 +53,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly stores: StoresService,
     private readonly customers: CustomersService,
+    private readonly stock: StockService,
   ) {}
 
   // ---------- helpers ----------
@@ -184,8 +186,19 @@ export class OrdersService {
         });
       }
 
+      // baixa de estoque (não bloqueia)
+      const warnings = await this.stock.sale(
+        tx,
+        order.items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          orderItemId: i.id,
+        })),
+        ownerId,
+      );
+
       await this.bumpCustomer(tx, dto.customerId, t.total, 1);
-      return order;
+      return Object.assign(order, { stockWarnings: warnings });
     });
   }
 
@@ -224,6 +237,16 @@ export class OrdersService {
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {
+        // devolve estoque dos itens antigos
+        await this.stock.restock(
+          tx,
+          order.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            orderItemId: i.id,
+          })),
+          ownerId,
+        );
         await tx.orderItem.updateMany({
           where: { orderId: id, deletedAt: null },
           data: { deletedAt: new Date() },
@@ -231,6 +254,19 @@ export class OrdersService {
         await tx.orderItem.createMany({
           data: items.map((i) => ({ ...i, orderId: id })),
         });
+        // baixa estoque dos itens novos
+        const recreated = await tx.orderItem.findMany({
+          where: { orderId: id, deletedAt: null },
+        });
+        await this.stock.sale(
+          tx,
+          recreated.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            orderItemId: i.id,
+          })),
+          ownerId,
+        );
       }
       const updated = await tx.order.update({
         where: { id },
@@ -292,6 +328,16 @@ export class OrdersService {
         where: { id },
         data: { deletedAt: new Date(), status: 'CANCELED' },
       });
+      // devolve estoque dos itens
+      await this.stock.restock(
+        tx,
+        order.items.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          orderItemId: i.id,
+        })),
+        ownerId,
+      );
       await this.bumpCustomer(tx, order.customerId, -Number(order.total), -1);
     });
     return { ok: true };

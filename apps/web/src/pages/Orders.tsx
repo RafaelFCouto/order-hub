@@ -35,7 +35,10 @@ export default function Orders() {
     queryFn: () => api<Order[]>(`/orders?${qs}`),
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['orders'] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['orders'] });
+    qc.invalidateQueries({ queryKey: ['products'] });
+  };
 
   const advance = useMutation({
     mutationFn: (vars: { id: string; to: OrderStatus }) =>

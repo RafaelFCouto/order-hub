@@ -228,7 +228,15 @@ export default function OrderForm() {
     },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['orders'] });
+      qc.invalidateQueries({ queryKey: ['products'] });
       if (editing) qc.invalidateQueries({ queryKey: ['order', id] });
+      const warns = saved.stockWarnings ?? [];
+      if (warns.length) {
+        alert(
+          'Estoque negativo:\n' +
+            warns.map((w) => `• ${w.name}: ${w.stock}`).join('\n'),
+        );
+      }
       navigate(`/orders/${saved.id}`);
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Erro'),

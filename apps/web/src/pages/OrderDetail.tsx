@@ -53,6 +53,7 @@ export default function OrderDetail() {
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['order', id] });
     qc.invalidateQueries({ queryKey: ['orders'] });
+    qc.invalidateQueries({ queryKey: ['products'] });
   };
 
   const addPayment = useMutation({

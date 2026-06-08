@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoresService } from '../stores/stores.service';
+import { StockService } from '../stock/stock.service';
 import {
   CreateCategoryDto,
   CreateProductDto,
@@ -13,6 +14,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stores: StoresService,
+    private readonly stock: StockService,
   ) {}
 
   // ---------- categorias ----------
@@ -115,8 +117,26 @@ export class ProductsService {
   }
 
   async update(userId: string, id: string, dto: UpdateProductDto) {
-    await this.get(userId, id); // valida acesso
-    return this.prisma.product.update({ where: { id }, data: dto });
+    const current = await this.get(userId, id); // valida acesso + estado atual
+    const oldPrice = Number(current.price);
+    const oldStock = current.stock;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.product.update({ where: { id }, data: dto });
+
+      if (dto.price !== undefined && Number(dto.price) !== oldPrice) {
+        await this.stock.priceChange(tx, id, oldPrice, Number(dto.price), userId);
+      }
+      if (
+        dto.stock !== undefined &&
+        dto.stock !== null &&
+        oldStock !== null &&
+        dto.stock !== oldStock
+      ) {
+        await this.stock.manualAdjust(tx, id, oldStock, dto.stock, userId);
+      }
+      return updated;
+    });
   }
 
   async remove(userId: string, id: string) {
