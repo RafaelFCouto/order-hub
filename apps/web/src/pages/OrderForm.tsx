@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { brl } from '../lib/format';
 import Select from '../components/Select';
 import { METHOD_LABEL } from '../lib/orderLabels';
+import { maskPhone } from '../lib/whatsapp';
 import type {
   Customer,
   DiscountType,
@@ -567,7 +568,8 @@ export default function OrderForm() {
             <input
               placeholder="WhatsApp"
               value={ncPhone}
-              onChange={(e) => setNcPhone(e.target.value)}
+              inputMode="numeric"
+              onChange={(e) => setNcPhone(maskPhone(e.target.value))}
             />
             {ncError && <p className="error">{ncError}</p>}
             <div className="modal-actions">

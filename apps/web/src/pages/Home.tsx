@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { brl } from '../lib/format';
+import { formatPhone, waLink } from '../lib/whatsapp';
 import Select from '../components/Select';
 import type { DashboardSummary, Order, Store } from '../types';
 
@@ -110,10 +111,24 @@ export default function Home() {
             <ul className="list">
               {list.map((o) => (
                 <li key={o.id} className="card list-item">
-                  <Link className="order-line" to={`/orders/${o.id}`}>
-                    <strong>#{o.code}</strong>
-                    <span>{o.customer?.name ?? 'Cliente'}</span>
-                  </Link>
+                  <div className="order-line">
+                    <Link className="order-link" to={`/orders/${o.id}`}>
+                      <strong>#{o.code}</strong> {o.customer?.name ?? 'Cliente'}
+                    </Link>
+                    {o.customer?.phone && waLink(o.customer.phone) && (
+                      <>
+                        <span className="muted">-</span>
+                        <a
+                          className="wa"
+                          href={waLink(o.customer.phone)!}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {formatPhone(o.customer.phone)}
+                        </a>
+                      </>
+                    )}
+                  </div>
                   <span className="muted small">
                     {new Date(o.scheduledFor!).toLocaleTimeString('pt-BR', {
                       hour: '2-digit',

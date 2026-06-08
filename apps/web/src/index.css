@@ -491,6 +491,10 @@ button.link.danger {
 .order-line strong {
   color: var(--primary);
 }
+.order-link {
+  text-decoration: none;
+  color: inherit;
+}
 .order-summary {
   overflow: hidden;
   text-overflow: ellipsis;

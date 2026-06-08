@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { waLink } from '../lib/whatsapp';
+import { formatPhone, maskPhone, waLink } from '../lib/whatsapp';
 import type { Customer } from '../types';
 
 interface FormState {
@@ -81,7 +81,8 @@ export default function Customers() {
         <input
           placeholder="WhatsApp"
           value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          inputMode="numeric"
+          onChange={(e) => setForm({ ...form, phone: maskPhone(e.target.value) })}
         />
         <input
           placeholder="Email"
@@ -125,10 +126,10 @@ export default function Customers() {
                       title="Abrir no WhatsApp"
                     >
                       {' · '}
-                      {c.phone}
+                      {formatPhone(c.phone)}
                     </a>
                   ) : (
-                    <span className="muted"> · {c.phone}</span>
+                    <span className="muted"> · {formatPhone(c.phone)}</span>
                   ))}
                 <div className="muted small">
                   {c.totalOrders} pedido(s) · R$ {c.totalSpent}
@@ -141,7 +142,7 @@ export default function Customers() {
                     setForm({
                       id: c.id,
                       name: c.name,
-                      phone: c.phone ?? '',
+                      phone: maskPhone(c.phone ?? ''),
                       email: c.email ?? '',
                       notes: c.notes ?? '',
                     })

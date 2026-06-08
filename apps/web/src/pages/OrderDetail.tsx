@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { brl } from '../lib/format';
-import { waLink } from '../lib/whatsapp';
+import { formatPhone, waLink } from '../lib/whatsapp';
 import {
   DELIVERY_LABEL,
   DELIVERY_METHOD_LABEL,
@@ -179,10 +179,10 @@ export default function OrderDetail() {
               target="_blank"
               rel="noreferrer"
             >
-              {order.customer.phone}
+              {formatPhone(order.customer.phone)}
             </a>
           ) : (
-            <span className="muted">{order.customer.phone}</span>
+            <span className="muted">{formatPhone(order.customer.phone)}</span>
           ))}
         <div className="muted small">
           Registrado por {order.owner?.name ?? '—'} ·{' '}

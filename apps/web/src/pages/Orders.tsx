@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { brl } from '../lib/format';
-import { waLink } from '../lib/whatsapp';
+import { formatPhone, waLink } from '../lib/whatsapp';
 import { NEXT_STATUS, PAYMENT_LABEL, STATUS_LABEL, isEditable } from '../lib/orderLabels';
 import Select from '../components/Select';
 import type { Order, OrderStatus, Store } from '../types';
@@ -152,10 +152,12 @@ export default function Orders() {
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {o.customer.phone}
+                          {formatPhone(o.customer.phone)}
                         </a>
                       ) : (
-                        <span className="muted">{o.customer.phone}</span>
+                        <span className="muted">
+                          {formatPhone(o.customer.phone)}
+                        </span>
                       ))}
                   </div>
 
