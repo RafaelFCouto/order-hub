@@ -15,6 +15,9 @@ interface FormState {
   stock: string;
   categoryId: string;
   active: boolean;
+  isCombo: boolean;
+  comboSize: string;
+  comboCategoryId: string;
 }
 
 const EMPTY: FormState = {
@@ -23,6 +26,9 @@ const EMPTY: FormState = {
   stock: '',
   categoryId: '',
   active: true,
+  isCombo: false,
+  comboSize: '4',
+  comboCategoryId: '',
 };
 
 export default function Products() {
@@ -68,6 +74,8 @@ export default function Products() {
         stock: f.stock === '' ? undefined : Number(f.stock),
         categoryId: f.categoryId || undefined,
         active: f.active,
+        comboSize: f.isCombo ? Number(f.comboSize) || 1 : null,
+        comboCategoryId: f.isCombo ? f.comboCategoryId || null : null,
       };
       return f.id
         ? api<Product>(`/products/${f.id}`, {
@@ -153,6 +161,35 @@ export default function Products() {
             ...(categories?.map((c) => ({ value: c.id, label: c.name })) ?? []),
           ]}
         />
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={form.isCombo}
+            onChange={(e) => setForm({ ...form, isCombo: e.target.checked })}
+          />
+          Combo (cliente escolhe sabores)
+        </label>
+        {form.isCombo && (
+          <>
+            <input
+              type="number"
+              min="1"
+              placeholder="Qtd de sabores"
+              value={form.comboSize}
+              onChange={(e) => setForm({ ...form, comboSize: e.target.value })}
+            />
+            <Select
+              value={form.comboCategoryId}
+              onChange={(v) => setForm({ ...form, comboCategoryId: v })}
+              placeholder="Categoria dos sabores"
+              options={[
+                { value: '', label: 'Categoria dos sabores' },
+                ...(categories?.map((c) => ({ value: c.id, label: c.name })) ??
+                  []),
+              ]}
+            />
+          </>
+        )}
         <button type="submit" disabled={save.isPending}>
           {save.isPending ? '...' : editing ? 'Salvar' : 'Adicionar'}
         </button>
@@ -174,6 +211,9 @@ export default function Products() {
             <li key={p.id} className="card list-item">
               <div>
                 <strong>{p.name}</strong>
+                {p.comboSize != null && (
+                  <span className="badge badge-owner"> combo {p.comboSize}</span>
+                )}
                 {!p.active && <span className="badge badge-staff"> inativo</span>}
                 {p.stock != null && p.stock <= 0 && (
                   <span
@@ -198,6 +238,9 @@ export default function Products() {
                       stock: p.stock == null ? '' : String(p.stock),
                       categoryId: p.categoryId ?? '',
                       active: p.active,
+                      isCombo: p.comboSize != null,
+                      comboSize: p.comboSize ? String(p.comboSize) : '4',
+                      comboCategoryId: p.comboCategoryId ?? '',
                     })
                   }
                 >

@@ -604,6 +604,11 @@ button.btn-danger {
   align-items: center;
   gap: 0.6rem;
 }
+.line-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
 .totals-box {
   display: flex;
   flex-direction: column;

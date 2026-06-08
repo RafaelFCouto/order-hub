@@ -262,11 +262,20 @@ export default function OrderDetail() {
             <span className="field-label">{storeName(sid)}</span>
             <ul className="list-plain">
               {items.map((i) => (
-                <li key={i.id} className="line-row">
-                  <span>
-                    {i.quantity}× {i.productName}
-                  </span>
-                  <span className="muted">{brl(i.lineTotal)}</span>
+                <li key={i.id} className="line-col">
+                  <div className="line-row">
+                    <span>
+                      {i.quantity}× {i.productName}
+                    </span>
+                    <span className="muted">{brl(i.lineTotal)}</span>
+                  </div>
+                  {i.options && i.options.length > 0 && (
+                    <div className="muted small">
+                      {i.options
+                        .map((o) => `${o.quantity}x ${o.productName}`)
+                        .join(', ')}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

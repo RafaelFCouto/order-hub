@@ -62,6 +62,16 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  /** Combo: nº de sabores a escolher (null/ausente = produto normal). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  comboSize?: number;
+
+  @IsOptional()
+  @IsUUID()
+  comboCategoryId?: string;
 }
 
 export class UpdateProductDto {
@@ -92,4 +102,13 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  comboSize?: number | null;
+
+  @IsOptional()
+  @IsUUID()
+  comboCategoryId?: string | null;
 }

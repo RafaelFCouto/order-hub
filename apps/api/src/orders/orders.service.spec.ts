@@ -407,6 +407,78 @@ describe('OrdersService', () => {
     expect(ev).toHaveLength(1);
   });
 
+  it('combo: escolhe sabores, valida soma e baixa estoque', async () => {
+    const cat = await prisma.productCategory.create({
+      data: { storeId: storeA, name: 'Cookies' },
+    });
+    const choc = await prisma.product.create({
+      data: { storeId: storeA, categoryId: cat.id, name: 'Choco', price: 0, stock: 10 },
+    });
+    const ban = await prisma.product.create({
+      data: { storeId: storeA, categoryId: cat.id, name: 'Baunilha', price: 0, stock: 10 },
+    });
+    const box = await prisma.product.create({
+      data: {
+        storeId: storeA,
+        name: 'Caixa 4 Cookies',
+        price: 40,
+        stock: 5,
+        comboSize: 4,
+        comboCategoryId: cat.id,
+      },
+    });
+
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [
+        {
+          productId: box.id,
+          quantity: 1,
+          options: [
+            { productId: choc.id, quantity: 2 },
+            { productId: ban.id, quantity: 2 },
+          ],
+        },
+      ],
+    });
+    expect(Number(order.total)).toBe(40);
+
+    const full = await service.get(USER.id, order.id);
+    expect(full.items[0].options).toHaveLength(2);
+
+    // estoque: caixa -1, cada sabor -2
+    expect((await prisma.product.findUnique({ where: { id: box.id } }))!.stock).toBe(4);
+    expect((await prisma.product.findUnique({ where: { id: choc.id } }))!.stock).toBe(8);
+    expect((await prisma.product.findUnique({ where: { id: ban.id } }))!.stock).toBe(8);
+
+    // soma de sabores != comboSize -> erro
+    await expect(
+      service.create(USER.id, {
+        customerId,
+        items: [
+          { productId: box.id, quantity: 1, options: [{ productId: choc.id, quantity: 3 }] },
+        ],
+      }),
+    ).rejects.toThrow();
+
+    // sabor fora da categoria do combo -> erro
+    await expect(
+      service.create(USER.id, {
+        customerId,
+        items: [
+          {
+            productId: box.id,
+            quantity: 1,
+            options: [
+              { productId: prodA, quantity: 2 },
+              { productId: choc.id, quantity: 2 },
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow();
+  });
+
   it('bloqueia acesso de outro dono', async () => {
     const other: AuthUser = { id: 'intruso-ord', email: 'i@x.com', name: 'I' };
     await prisma.user.create({
