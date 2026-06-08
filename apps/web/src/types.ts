@@ -71,6 +71,22 @@ export type DeliveryMethod =
   | 'CORREIOS'
   | 'OTHER';
 
+export type OrderEventType =
+  | 'CREATED'
+  | 'STATUS'
+  | 'PAYMENT'
+  | 'REFUND'
+  | 'DELIVERY'
+  | 'CANCELED'
+  | 'EDITED';
+
+export interface OrderEvent {
+  id: string;
+  type: OrderEventType;
+  message: string;
+  createdAt: string;
+}
+
 export interface Delivery {
   id: string;
   method: DeliveryMethod;
@@ -124,6 +140,7 @@ export interface Order {
   customer?: Customer;
   payments?: Payment[];
   deliveries?: Delivery[];
+  events?: OrderEvent[];
   owner?: { id: string; name: string; email: string };
   stockWarnings?: { name: string; stock: number }[];
 }

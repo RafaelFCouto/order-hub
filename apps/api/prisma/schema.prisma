@@ -75,6 +75,16 @@ enum ProductEventType {
   STOCK_ADJUST
 }
 
+enum OrderEventType {
+  CREATED
+  STATUS
+  PAYMENT
+  REFUND
+  DELIVERY
+  CANCELED
+  EDITED
+}
+
 // ───────────────────────── MODELS ─────────────────────────
 
 /// Espelha o Supabase Auth (id = auth.users.id).
@@ -211,16 +221,32 @@ model Order {
   updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt        DateTime?      @map("deleted_at") @db.Timestamptz(6)
 
-  owner      User        @relation(fields: [ownerId], references: [id])
-  customer   Customer    @relation(fields: [customerId], references: [id])
+  owner      User         @relation(fields: [ownerId], references: [id])
+  customer   Customer     @relation(fields: [customerId], references: [id])
   items      OrderItem[]
   payments   Payment[]
   deliveries Delivery[]
+  events     OrderEvent[]
 
   @@index([ownerId])
   @@index([customerId])
   @@index([scheduledFor])
   @@map("order")
+}
+
+/// Linha do tempo do pedido (auditoria legível).
+model OrderEvent {
+  id        String         @id @default(uuid()) @db.Uuid
+  orderId   String         @map("order_id") @db.Uuid
+  type      OrderEventType
+  message   String
+  actorId   String?        @map("actor_id") @db.Uuid
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@map("order_event")
 }
 
 /// Carrega a loja; congela nome/preço.

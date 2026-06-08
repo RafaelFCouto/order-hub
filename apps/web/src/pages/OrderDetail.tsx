@@ -454,6 +454,26 @@ export default function OrderDetail() {
         </div>
       )}
 
+      {/* histórico */}
+      {order.events && order.events.length > 0 && (
+        <div className="card">
+          <span className="field-label">Histórico</span>
+          <ul className="timeline">
+            {order.events.map((ev) => (
+              <li key={ev.id} className="timeline-item">
+                <span className={`tl-dot tl-${ev.type.toLowerCase()}`} />
+                <div>
+                  <div>{ev.message}</div>
+                  <div className="muted small">
+                    {new Date(ev.createdAt).toLocaleString('pt-BR')}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* ações */}
       {order.status !== 'CANCELED' && (
         <div className="actions">

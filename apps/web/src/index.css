@@ -545,6 +545,46 @@ button.link.danger {
   gap: 0.3rem;
   margin-top: 0.4rem;
 }
+.timeline {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.timeline-item {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.tl-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  margin-top: 0.3rem;
+  flex: 0 0 auto;
+  background: var(--muted);
+}
+.tl-created {
+  background: #2563eb;
+}
+.tl-payment {
+  background: #16a34a;
+}
+.tl-refund,
+.tl-canceled {
+  background: var(--danger);
+}
+.tl-delivery {
+  background: #7c3aed;
+}
+.tl-status {
+  background: #f59e0b;
+}
+.tl-edited {
+  background: var(--muted);
+}
 .delivery-info .actions {
   margin-top: 0.5rem;
 }

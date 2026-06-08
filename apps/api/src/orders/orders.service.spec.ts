@@ -379,6 +379,34 @@ describe('OrdersService', () => {
     expect(prod!.stock).toBe(5);
   });
 
+  it('registra timeline do pedido', async () => {
+    const order = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodB, quantity: 1 }], // 25
+    });
+    await service.addPayment(USER.id, order.id, { amount: 25, method: 'PIX' });
+    const d = await service.createDelivery(USER.id, order.id, {
+      method: 'PICKUP',
+    });
+    await service.updateDelivery(USER.id, d.deliveries[0].id, {
+      setReceived: true,
+    });
+
+    const full = await service.get(USER.id, order.id);
+    const types = full.events.map((e) => e.type);
+    expect(types).toContain('CREATED');
+    expect(types).toContain('PAYMENT');
+    expect(types).toContain('DELIVERY');
+    expect(full.events[0].type).toBe('CREATED'); // ordem cronológica
+
+    await service.remove(USER.id, order.id);
+    // não dá pra get cancelado; confere direto no banco
+    const ev = await prisma.orderEvent.findMany({
+      where: { orderId: order.id, type: 'CANCELED' },
+    });
+    expect(ev).toHaveLength(1);
+  });
+
   it('bloqueia acesso de outro dono', async () => {
     const other: AuthUser = { id: 'intruso-ord', email: 'i@x.com', name: 'I' };
     await prisma.user.create({

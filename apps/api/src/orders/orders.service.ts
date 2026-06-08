@@ -10,6 +10,7 @@ import { CustomersService } from '../customers/customers.service';
 import { StockService } from '../stock/stock.service';
 import {
   DiscountType,
+  OrderEventType,
   OrderStatus,
   PaymentStatus,
 } from '../generated/prisma/enums';
@@ -29,6 +30,28 @@ const STATUS_FLOW: Record<OrderStatus, OrderStatus[]> = {
 const EDITABLE_STATUS: OrderStatus[] = ['PENDING', 'IN_PRODUCTION'];
 
 const money = (n: number) => Math.round(n * 100) / 100;
+const brlMsg = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
+
+const STATUS_PT: Record<string, string> = {
+  PENDING: 'Pendente',
+  IN_PRODUCTION: 'Em produção',
+  READY: 'Pronto',
+  CANCELED: 'Cancelado',
+};
+const METHOD_PT: Record<string, string> = {
+  PIX: 'PIX',
+  CASH: 'Dinheiro',
+  CARD: 'Cartão',
+  OTHER: 'Outro',
+};
+const DMETHOD_PT: Record<string, string> = {
+  PICKUP: 'Retirada',
+  OWN_DELIVERY: 'Entrega própria',
+  UBER: 'Uber',
+  MOTOBOY: 'Motoboy',
+  CORREIOS: 'Correios',
+  OTHER: 'Outro',
+};
 
 interface BuiltItem {
   productId: string;
@@ -186,6 +209,42 @@ export class OrdersService {
         });
       }
 
+      // timeline
+      await this.logEvent(
+        tx,
+        order.id,
+        'CREATED',
+        'Pedido criado',
+        ownerId,
+        placedAt,
+      );
+      if (completed) {
+        await this.logEvent(
+          tx,
+          order.id,
+          'PAYMENT',
+          `Pagamento total ${brlMsg(t.total)} (${METHOD_PT[dto.paymentMethod ?? 'CASH']})`,
+          ownerId,
+          new Date(placedAt.getTime() + 1),
+        );
+        await this.logEvent(
+          tx,
+          order.id,
+          'DELIVERY',
+          'Entregue (retirada)',
+          ownerId,
+          new Date(placedAt.getTime() + 2),
+        );
+        await this.logEvent(
+          tx,
+          order.id,
+          'STATUS',
+          'Produção: Pronto',
+          ownerId,
+          new Date(placedAt.getTime() + 3),
+        );
+      }
+
       // baixa de estoque (não bloqueia)
       const warnings = await this.stock.sale(
         tx,
@@ -300,6 +359,7 @@ export class OrdersService {
         await this.bumpCustomer(tx, oldCustomer, -oldTotal, -1);
         await this.bumpCustomer(tx, newCustomer, t.total, 1);
       }
+      await this.logEvent(tx, id, 'EDITED', 'Pedido editado', ownerId);
       return updated;
     });
   }
@@ -313,10 +373,20 @@ export class OrdersService {
         `Transição inválida: ${current} → ${next}`,
       );
     }
-    return this.prisma.order.update({
-      where: { id },
-      data: { status: next },
-      include: { items: { where: { deletedAt: null } } },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id },
+        data: { status: next },
+        include: { items: { where: { deletedAt: null } } },
+      });
+      await this.logEvent(
+        tx,
+        id,
+        next === 'CANCELED' ? 'CANCELED' : 'STATUS',
+        `Produção: ${STATUS_PT[next]}`,
+        ownerId,
+      );
+      return updated;
     });
   }
 
@@ -339,6 +409,7 @@ export class OrdersService {
         ownerId,
       );
       await this.bumpCustomer(tx, order.customerId, -Number(order.total), -1);
+      await this.logEvent(tx, id, 'CANCELED', 'Pedido cancelado', ownerId);
     });
     return { ok: true };
   }
@@ -356,6 +427,13 @@ export class OrdersService {
         notes: dto.notes,
       },
     });
+    await this.logEvent(
+      this.prisma,
+      orderId,
+      'PAYMENT',
+      `Pagamento ${brlMsg(dto.amount)} (${METHOD_PT[dto.method]})`,
+      ownerId,
+    );
     return this.recalcPayment(orderId);
   }
 
@@ -371,6 +449,13 @@ export class OrdersService {
       where: { id: paymentId },
       data: { deletedAt: new Date() },
     });
+    await this.logEvent(
+      this.prisma,
+      payment.orderId,
+      'REFUND',
+      `Estorno ${brlMsg(Number(payment.amount))}`,
+      ownerId,
+    );
     return this.recalcPayment(payment.orderId);
   }
 
@@ -428,6 +513,26 @@ export class OrdersService {
     });
   }
 
+  /** Registra um evento na timeline do pedido. */
+  private async logEvent(
+    tx: Pick<PrismaService, 'orderEvent'>,
+    orderId: string,
+    type: OrderEventType,
+    message: string,
+    actorId?: string,
+    createdAt?: Date,
+  ) {
+    await tx.orderEvent.create({
+      data: {
+        orderId,
+        type,
+        message,
+        actorId: actorId ?? null,
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+  }
+
   // ---------- entrega ----------
 
   async createDelivery(ownerId: string, orderId: string, dto: CreateDeliveryDto) {
@@ -451,6 +556,13 @@ export class OrdersService {
         notes: dto.notes,
       },
     });
+    await this.logEvent(
+      this.prisma,
+      orderId,
+      'DELIVERY',
+      `Entrega registrada: ${DMETHOD_PT[dto.method]}`,
+      ownerId,
+    );
     return this.get(ownerId, orderId);
   }
 
@@ -515,6 +627,18 @@ export class OrdersService {
           data: { deliveryStatus: deliveryStatus as never },
         });
       }
+      if (shippedAt) {
+        await this.logEvent(
+          tx,
+          order.id,
+          'DELIVERY',
+          'Saiu para entrega',
+          ownerId,
+        );
+      }
+      if (receivedAt) {
+        await this.logEvent(tx, order.id, 'DELIVERY', 'Recebido', ownerId);
+      }
     });
     return this.get(ownerId, order.id);
   }
@@ -540,6 +664,13 @@ export class OrdersService {
         where: { id: delivery.orderId },
         data: { deliveryStatus: 'PENDING' },
       });
+      await this.logEvent(
+        tx,
+        delivery.orderId,
+        'DELIVERY',
+        'Entrega removida',
+        ownerId,
+      );
     });
     return this.get(ownerId, delivery.orderId);
   }
@@ -615,6 +746,7 @@ export class OrdersService {
         deliveries: { where: { deletedAt: null } },
         customer: true,
         owner: { select: { id: true, name: true, email: true } },
+        events: { orderBy: { createdAt: 'asc' } },
       },
     });
     if (!order) throw new NotFoundException('Pedido não encontrado');
