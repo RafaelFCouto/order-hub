@@ -545,6 +545,28 @@ button.link.danger {
   gap: 0.3rem;
   margin-top: 0.4rem;
 }
+.msg-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.msg-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.msg-btn:hover {
+  border-color: #128c7e;
+  color: #128c7e;
+}
 .timeline {
   list-style: none;
   margin: 0.5rem 0 0;

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { brl } from '../lib/format';
-import { formatPhone, waLink } from '../lib/whatsapp';
+import { formatPhone, waLink, waLinkText } from '../lib/whatsapp';
 import {
   DELIVERY_LABEL,
   DELIVERY_METHOD_LABEL,
@@ -150,6 +150,35 @@ export default function OrderDetail() {
   const delivery = order.deliveries?.[0];
   const balanceOpen = Number(order.balanceDue) > 0;
 
+  // mensagens prontas de WhatsApp
+  const phone = order.customer?.phone;
+  const nome = order.customer?.name ?? 'cliente';
+  const itensTxt = order.items
+    .map((i) => `${i.quantity}x ${i.productName} - ${brl(i.lineTotal)}`)
+    .join('\n');
+  const messages: { label: string; text: string; show: boolean }[] = [
+    {
+      label: 'Pedido confirmado',
+      text: `Olá ${nome}! Seu pedido foi confirmado 🎉\n\n${itensTxt}\n\nTotal: ${brl(order.total)}`,
+      show: true,
+    },
+    {
+      label: 'Pedido pronto',
+      text: `Olá ${nome}! Seu pedido está pronto ✅`,
+      show: true,
+    },
+    {
+      label: 'Pedido enviado',
+      text: `Olá ${nome}! Seu pedido saiu para entrega 🚚`,
+      show: true,
+    },
+    {
+      label: 'Cobrança',
+      text: `Olá ${nome}! Passando para lembrar do pagamento do seu pedido. Faltam ${brl(order.balanceDue)} 🙏`,
+      show: balanceOpen,
+    },
+  ];
+
   return (
     <div className="page">
       <div className="page-head">
@@ -194,6 +223,28 @@ export default function OrderDetail() {
           </div>
         )}
       </div>
+
+      {/* mensagens WhatsApp */}
+      {phone && waLink(phone) && (
+        <div className="card">
+          <span className="field-label">Mensagens (WhatsApp)</span>
+          <div className="msg-buttons">
+            {messages
+              .filter((m) => m.show)
+              .map((m) => (
+                <a
+                  key={m.label}
+                  className="msg-btn"
+                  href={waLinkText(phone, m.text)!}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {m.label}
+                </a>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* itens por loja */}
       {Object.entries(byStore).map(([sid, items]) => {

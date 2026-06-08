@@ -40,3 +40,13 @@ export function waLink(phone: string | null | undefined): string | null {
   if (digits.length <= 11) digits = `55${digits}`;
   return `https://wa.me/${digits}`;
 }
+
+/** Link wa.me com mensagem pré-preenchida. */
+export function waLinkText(
+  phone: string | null | undefined,
+  text: string,
+): string | null {
+  const base = waLink(phone);
+  if (!base) return null;
+  return `${base}?text=${encodeURIComponent(text)}`;
+}
