@@ -13,7 +13,7 @@ export default function Orders() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { confirm } = useUi();
-  const [tab, setTab] = useState<'active' | 'done'>('active');
+  const [tab, setTab] = useState<'active' | 'scheduled' | 'done'>('active');
   const [storeId, setStoreId] = useState('');
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
@@ -26,15 +26,14 @@ export default function Orders() {
   const storeName = (id: string) =>
     stores?.find((s) => s.id === id)?.name ?? 'Loja';
 
-  const params = new URLSearchParams();
-  if (storeId) params.set('store_id', storeId);
-  if (status && tab === 'active') params.set('status', status);
-  params.set('done', tab === 'done' ? 'true' : 'false');
-  const qs = params.toString();
-
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['orders', tab, storeId, status],
-    queryFn: () => api<Order[]>(`/orders?${qs}`),
+  const storeQs = storeId ? `&store_id=${storeId}` : '';
+  const { data: activeOrders, isLoading } = useQuery({
+    queryKey: ['orders', 'active', storeId],
+    queryFn: () => api<Order[]>(`/orders?done=false${storeQs}`),
+  });
+  const { data: doneOrders } = useQuery({
+    queryKey: ['orders', 'done', storeId],
+    queryFn: () => api<Order[]>(`/orders?done=true${storeQs}`),
   });
 
   const invalidate = () => {
@@ -56,8 +55,24 @@ export default function Orders() {
     onSuccess: invalidate,
   });
 
+  const active = activeOrders ?? [];
+  const ativos = active.filter((o) => !o.scheduledFor);
+  const agendados = active
+    .filter((o) => o.scheduledFor)
+    .sort((a, b) => a.scheduledFor!.localeCompare(b.scheduledFor!));
+  const concluidos = doneOrders ?? [];
+
+  const counts = {
+    active: ativos.length,
+    scheduled: agendados.length,
+    done: concluidos.length,
+  };
+  const base =
+    tab === 'done' ? concluidos : tab === 'scheduled' ? agendados : ativos;
+
   const term = search.trim().toLowerCase();
-  const filtered = (orders ?? []).filter((o) => {
+  const filtered = base.filter((o) => {
+    if (status && tab !== 'done' && o.status !== status) return false;
     if (!term) return true;
     const name = o.customer?.name?.toLowerCase() ?? '';
     const phone = o.customer?.phone ?? '';
@@ -78,13 +93,19 @@ export default function Orders() {
           className={`tab ${tab === 'active' ? 'active' : ''}`}
           onClick={() => setTab('active')}
         >
-          Ativos
+          Ativos <span className="tab-count">{counts.active}</span>
+        </button>
+        <button
+          className={`tab ${tab === 'scheduled' ? 'active' : ''}`}
+          onClick={() => setTab('scheduled')}
+        >
+          Agendados <span className="tab-count">{counts.scheduled}</span>
         </button>
         <button
           className={`tab ${tab === 'done' ? 'active' : ''}`}
           onClick={() => setTab('done')}
         >
-          Concluídos
+          Concluídos <span className="tab-count">{counts.done}</span>
         </button>
       </div>
 
@@ -98,7 +119,7 @@ export default function Orders() {
             ...(stores?.map((s) => ({ value: s.id, label: s.name })) ?? []),
           ]}
         />
-        {tab === 'active' && (
+        {tab !== 'done' && (
           <Select
             value={status}
             onChange={setStatus}
@@ -123,7 +144,11 @@ export default function Orders() {
         <p className="muted">Carregando...</p>
       ) : !filtered.length ? (
         <p className="muted">
-          {tab === 'done' ? 'Nenhum pedido concluído.' : 'Nenhum pedido ativo.'}
+          {tab === 'done'
+            ? 'Nenhum pedido concluído.'
+            : tab === 'scheduled'
+              ? 'Nenhum pedido agendado.'
+              : 'Nenhum pedido ativo.'}
         </p>
       ) : (
         <ul className="list">
@@ -203,7 +228,7 @@ export default function Orders() {
                     ))}
                   </div>
                 </div>
-                {tab === 'active' && (
+                {tab !== 'done' && (
                   <div className="actions">
                     {next && o.status !== 'CANCELED' && (
                       <button
