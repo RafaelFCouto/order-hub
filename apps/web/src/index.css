@@ -528,6 +528,20 @@ button.btn-danger {
   color: var(--primary);
   border-bottom-color: var(--primary);
 }
+.tab-count {
+  display: inline-block;
+  min-width: 1.2rem;
+  padding: 0 0.35rem;
+  margin-left: 0.15rem;
+  font-size: 0.72rem;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--ink);
+}
+.tab.active .tab-count {
+  background: var(--primary);
+  color: #fff;
+}
 .filters {
   display: flex;
   flex-direction: column;

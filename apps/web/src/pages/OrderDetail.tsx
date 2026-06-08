@@ -176,6 +176,14 @@ export default function OrderDetail() {
       show: order.deliveryStatus === 'SHIPPED',
     },
     {
+      label: 'Agradecimento',
+      text: `Olá ${nome}! Seu pedido foi finalizado. Muito obrigado pela preferência — esperamos te ver de novo!`,
+      show:
+        order.status === 'READY' &&
+        order.deliveryStatus === 'RECEIVED' &&
+        (order.paymentStatus === 'PAID' || order.paymentStatus === 'OVERPAID'),
+    },
+    {
       label: 'Cobrança',
       text:
         `Olá ${nome}! Passando para lembrar do pagamento do seu pedido:\n\n` +
