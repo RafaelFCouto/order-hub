@@ -132,7 +132,7 @@ export default function Products() {
         />
       </div>
 
-      <form className="card row-form" onSubmit={onSubmit}>
+      <form className="card row-form product-form" onSubmit={onSubmit}>
         <input
           placeholder="Nome do produto *"
           value={form.name}
@@ -212,9 +212,9 @@ export default function Products() {
               <div>
                 <strong>{p.name}</strong>
                 {p.comboSize != null && (
-                  <span className="badge badge-owner"> combo {p.comboSize}</span>
+                  <span className="badge badge-owner">combo c/ {p.comboSize}</span>
                 )}
-                {!p.active && <span className="badge badge-staff"> inativo</span>}
+                {!p.active && <span className="badge badge-staff">inativo</span>}
                 {p.stock != null && p.stock <= 0 && (
                   <span
                     className={`badge ${p.stock < 0 ? 'status-late' : 'status-pending'}`}

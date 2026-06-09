@@ -246,14 +246,18 @@ label,
   display: flex;
   background: var(--card);
   border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .bottomnav a {
   flex: 1;
+  min-width: 0;
   text-align: center;
-  padding: 0.9rem;
+  padding: 0.9rem 0.25rem;
   text-decoration: none;
   color: var(--muted);
   font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 .bottomnav a.active {
   color: var(--primary);
@@ -284,6 +288,10 @@ label,
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
   background: var(--border);
+}
+.list-item strong + .badge,
+.list-item .badge + .badge {
+  margin-left: 0.35rem;
 }
 .badge-owner {
   background: #dbeafe;
@@ -874,17 +882,47 @@ textarea:focus {
   .row-form input {
     flex: 1;
   }
+  /* entrega/pagamento: vários campos -> deixa quebrar em vez de espremer */
+  .inline-form {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .inline-form > input,
+  .inline-form > .select {
+    flex: 1 1 10rem;
+    min-width: 9rem;
+  }
+  .inline-form > button {
+    flex: 0 0 auto;
+  }
+  /* form de produtos: muitos campos -> deixa quebrar em várias linhas */
+  .product-form {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .product-form > input,
+  .product-form > .select {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+  }
+  .product-form > .toggle {
+    flex: 0 0 auto;
+    align-self: center;
+  }
+  .product-form > button {
+    flex: 0 0 auto;
+  }
   .bottomnav {
     position: static;
     border-top: none;
     border-bottom: 1px solid var(--border);
-    justify-content: flex-start;
-    gap: 0.5rem;
+    justify-content: space-around;
     padding: 0 1rem;
   }
   .bottomnav a {
     flex: 0 0 auto;
     padding: 0.9rem 1.25rem;
+    font-size: 1rem;
   }
   .content {
     padding-bottom: 1rem;

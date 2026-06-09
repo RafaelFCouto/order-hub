@@ -23,10 +23,6 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="content">
-        <Outlet />
-      </main>
-
       <nav className="bottomnav">
         <NavLink to="/" end>
           Início
@@ -36,6 +32,10 @@ export default function Layout() {
         <NavLink to="/products">Produtos</NavLink>
         <NavLink to="/stores">Lojas</NavLink>
       </nav>
+
+      <main className="content">
+        <Outlet />
+      </main>
     </div>
   );
 }

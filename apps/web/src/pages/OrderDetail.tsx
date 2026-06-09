@@ -393,7 +393,7 @@ export default function OrderDetail() {
         )}
 
         {Number(order.balanceDue) > 0 && order.status !== 'CANCELED' && (
-          <form className="row-form pay-form" onSubmit={onAddPayment}>
+          <form className="row-form pay-form inline-form" onSubmit={onAddPayment}>
             <MoneyInput
               placeholder="Valor R$"
               value={amount}
@@ -420,7 +420,7 @@ export default function OrderDetail() {
         <div className="card">
           <span className="field-label">Entrega</span>
           {!delivery ? (
-            <div className="row-form">
+            <div className="row-form inline-form">
               <Select
                 value={delMethod}
                 onChange={(v) => setDelMethod(v as DeliveryMethod)}
