@@ -94,19 +94,44 @@ describe('OrdersService', () => {
     expect(Number(pct.total)).toBe(45);
   });
 
-  it('soma frete no total', async () => {
+  it('soma frete no total só quando a entrega é por nós', async () => {
+    // entrega por nós: frete entra no total
+    const porNos = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodA, quantity: 1 }], // 10
+      deliveryFee: 7,
+      deliveryByUs: true,
+    });
+    expect(Number(porNos.total)).toBe(17);
+
+    // entrega não é por nós: frete NÃO entra no total
+    const naoPorNos = await service.create(USER.id, {
+      customerId,
+      items: [{ productId: prodA, quantity: 1 }], // 10
+      deliveryFee: 7,
+      deliveryByUs: false,
+    });
+    expect(Number(naoPorNos.total)).toBe(10);
+  });
+
+  it('alternar deliveryByUs no update recalcula o total', async () => {
     const order = await service.create(USER.id, {
       customerId,
       items: [{ productId: prodA, quantity: 1 }], // 10
       deliveryFee: 7,
+      deliveryByUs: false,
     });
-    expect(Number(order.total)).toBe(17);
+    expect(Number(order.total)).toBe(10);
+
+    const edited = await service.update(USER.id, order.id, { deliveryByUs: true });
+    expect(Number(edited.total)).toBe(17);
   });
 
   it('edita em PENDING e bloqueia após READY', async () => {
     const order = await service.create(USER.id, {
       customerId,
       items: [{ productId: prodA, quantity: 1 }],
+      deliveryByUs: true,
     });
 
     // editável em PENDING: muda frete -> recalcula total

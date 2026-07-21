@@ -174,6 +174,7 @@ export class OrdersService {
     discountType: DiscountType,
     discountValue: number,
     deliveryFee: number,
+    deliveryByUs: boolean,
   ): Totals {
     const itemsTotal = money(items.reduce((s, i) => s + i.lineTotal, 0));
     let discountAmount = 0;
@@ -181,7 +182,9 @@ export class OrdersService {
     else if (discountType === 'PERCENT')
       discountAmount = (itemsTotal * discountValue) / 100;
     discountAmount = money(discountAmount);
-    const total = money(itemsTotal - discountAmount + deliveryFee);
+    // taxa de entrega só entra no total quando a entrega é por nós
+    const chargedDelivery = deliveryByUs ? deliveryFee : 0;
+    const total = money(itemsTotal - discountAmount + chargedDelivery);
     const hasStoreDiscount = discountType !== 'NONE' && discountAmount > 0;
     return {
       itemsTotal,
@@ -219,7 +222,14 @@ export class OrdersService {
     const discountType = dto.discountType ?? 'NONE';
     const discountValue = dto.discountValue ?? 0;
     const deliveryFee = dto.deliveryFee ?? 0;
-    const t = this.computeTotals(items, discountType, discountValue, deliveryFee);
+    const deliveryByUs = dto.deliveryByUs ?? false;
+    const t = this.computeTotals(
+      items,
+      discountType,
+      discountValue,
+      deliveryFee,
+      deliveryByUs,
+    );
     const placedAt = dto.placedAt ? new Date(dto.placedAt) : new Date();
     const completed = dto.completed === true;
     const paymentStatus = completed
@@ -243,6 +253,7 @@ export class OrdersService {
           hasStoreDiscount: t.hasStoreDiscount,
           overrideValue: t.overrideValue,
           deliveryFee,
+          deliveryByUs,
           total: t.total,
           paidTotal: completed ? t.total : 0,
           balanceDue: completed ? 0 : t.total,
@@ -357,7 +368,14 @@ export class OrdersService {
     const discountType = dto.discountType ?? (order.discountType as DiscountType);
     const discountValue = dto.discountValue ?? Number(order.discountValue);
     const deliveryFee = dto.deliveryFee ?? Number(order.deliveryFee);
-    const t = this.computeTotals(items, discountType, discountValue, deliveryFee);
+    const deliveryByUs = dto.deliveryByUs ?? order.deliveryByUs;
+    const t = this.computeTotals(
+      items,
+      discountType,
+      discountValue,
+      deliveryFee,
+      deliveryByUs,
+    );
     const paidTotal = Number(order.paidTotal);
     const paymentStatus = this.derivePaymentStatus(paidTotal, t.total);
 
@@ -409,6 +427,7 @@ export class OrdersService {
           hasStoreDiscount: t.hasStoreDiscount,
           overrideValue: t.overrideValue,
           deliveryFee,
+          deliveryByUs,
           total: t.total,
           balanceDue: money(t.total - paidTotal),
           paymentStatus,

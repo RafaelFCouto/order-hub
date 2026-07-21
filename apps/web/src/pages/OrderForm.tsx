@@ -43,6 +43,7 @@ export default function OrderForm() {
   const [discountType, setDiscountType] = useState<DiscountType>('NONE');
   const [discountValue, setDiscountValue] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
+  const [deliveryByUs, setDeliveryByUs] = useState(false);
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledFor, setScheduledFor] = useState('');
   const [notes, setNotes] = useState('');
@@ -129,6 +130,7 @@ export default function OrderForm() {
           : '',
     );
     setDeliveryFee(moneyToMasked(order.deliveryFee));
+    setDeliveryByUs(order.deliveryByUs);
     setIsScheduled(Boolean(order.scheduledFor));
     setScheduledFor(
       order.scheduledFor ? order.scheduledFor.slice(0, 16) : '',
@@ -146,10 +148,11 @@ export default function OrderForm() {
       discount = Math.min(parseMoney(discountValue), itemsTotal);
     else if (discountType === 'PERCENT')
       discount = (itemsTotal * (Number(discountValue) || 0)) / 100;
-    const fee = parseMoney(deliveryFee);
+    // frete só entra no total quando a entrega é por nossa conta
+    const fee = deliveryByUs ? parseMoney(deliveryFee) : 0;
     const total = itemsTotal - discount + fee;
     return { itemsTotal, discount, total };
-  }, [lines, discountType, discountValue, deliveryFee]);
+  }, [lines, discountType, discountValue, deliveryFee, deliveryByUs]);
 
   const flavorSum = Object.values(flavorQty).reduce((s, q) => s + q, 0);
 
@@ -259,6 +262,7 @@ export default function OrderForm() {
               ? parseMoney(discountValue)
               : Number(discountValue) || 0,
         deliveryFee: parseMoney(deliveryFee),
+        deliveryByUs,
         scheduledFor:
           isScheduled && scheduledFor
             ? new Date(scheduledFor).toISOString()
@@ -286,6 +290,7 @@ export default function OrderForm() {
               ? parseMoney(discountValue)
               : Number(discountValue) || 0,
         deliveryFee: parseMoney(deliveryFee),
+        deliveryByUs,
         scheduledFor:
           isScheduled && scheduledFor
             ? new Date(scheduledFor).toISOString()
@@ -525,6 +530,17 @@ export default function OrderForm() {
           />
         </div>
 
+        {parseMoney(deliveryFee) > 0 && (
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={deliveryByUs}
+              onChange={(e) => setDeliveryByUs(e.target.checked)}
+            />
+            Entrega por nossa conta (cobrar frete do cliente)
+          </label>
+        )}
+
         <div className="field">
           <label className="toggle">
             <input
@@ -554,7 +570,8 @@ export default function OrderForm() {
           <div className="muted">
             Itens: {brl(totals.itemsTotal)}
             {totals.discount > 0 && ` · Desconto: −${brl(totals.discount)}`}
-            {parseMoney(deliveryFee) > 0 &&
+            {deliveryByUs &&
+              parseMoney(deliveryFee) > 0 &&
               ` · Frete: ${brl(parseMoney(deliveryFee))}`}
           </div>
           <strong className="order-total">Total: {brl(totals.total)}</strong>
