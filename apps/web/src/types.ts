@@ -141,6 +141,7 @@ export interface Order {
   discountAmount: string;
   hasStoreDiscount: boolean;
   deliveryFee: string;
+  deliveryByUs: boolean;
   total: string;
   paidTotal: string;
   balanceDue: string;

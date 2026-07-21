@@ -307,9 +307,15 @@ export default function OrderDetail() {
             <span>−{brl(order.discountAmount)}</span>
           </div>
         )}
-        {Number(order.deliveryFee) > 0 && (
+        {Number(order.deliveryFee) > 0 && order.deliveryByUs && (
           <div className="line-row muted">
             <span>Frete</span>
+            <span>{brl(order.deliveryFee)}</span>
+          </div>
+        )}
+        {Number(order.deliveryFee) > 0 && !order.deliveryByUs && (
+          <div className="line-row muted">
+            <span>Frete (não cobrado)</span>
             <span>{brl(order.deliveryFee)}</span>
           </div>
         )}

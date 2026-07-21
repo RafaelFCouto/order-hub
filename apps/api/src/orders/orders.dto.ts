@@ -69,6 +69,11 @@ export class CreateOrderDto {
   @Min(0)
   deliveryFee?: number;
 
+  /** Entrega por nós: quando true, deliveryFee entra no total a cobrar. */
+  @IsOptional()
+  @IsBoolean()
+  deliveryByUs?: boolean;
+
   @IsOptional()
   @IsISO8601()
   scheduledFor?: string;
@@ -119,6 +124,11 @@ export class UpdateOrderDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   deliveryFee?: number;
+
+  /** Entrega por nós: quando true, deliveryFee entra no total a cobrar. */
+  @IsOptional()
+  @IsBoolean()
+  deliveryByUs?: boolean;
 
   @IsOptional()
   @IsISO8601()

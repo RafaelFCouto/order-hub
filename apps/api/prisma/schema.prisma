@@ -217,6 +217,7 @@ model Order {
   hasStoreDiscount Boolean        @default(false) @map("has_store_discount")
   overrideValue    Decimal?       @map("override_value") @db.Decimal(10, 2)
   deliveryFee      Decimal        @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  deliveryByUs     Boolean        @default(false) @map("delivery_by_us") // entrega por nós: taxa entra no total
   total            Decimal        @default(0) @db.Decimal(10, 2)
   paidTotal        Decimal        @default(0) @map("paid_total") @db.Decimal(10, 2)
   balanceDue       Decimal        @default(0) @map("balance_due") @db.Decimal(10, 2)
